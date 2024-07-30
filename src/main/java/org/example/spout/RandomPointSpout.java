@@ -32,8 +32,8 @@ import org.apache.storm.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class RandomTrajectorySpout extends BaseRichSpout {
-    private static final Logger LOG = LoggerFactory.getLogger(RandomTrajectorySpout.class);
+public class RandomPointSpout extends BaseRichSpout {
+    private static final Logger LOG = LoggerFactory.getLogger(RandomPointSpout.class);
     private SpoutOutputCollector collector;
     private Integer pointer = 0;
     private Integer m = 1;
@@ -70,8 +70,8 @@ public class RandomTrajectorySpout extends BaseRichSpout {
         Utils.sleep(100);
         if(maxTrajectoryIndex < 0)return;
         collector.emit(values.get(pointer), pointer);
+        maxTrajectoryIndex--;
         if(!values.get(pointer).get(0).equals(lastTrajId)){
-            maxTrajectoryIndex--;
             lastTrajId = (Integer) values.get(pointer).get(0);
             LOG.info("Start upload of trajectory: " + lastTrajId);
             LOG.info("maxTrajectoryIndex: " + maxTrajectoryIndex);

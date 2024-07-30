@@ -37,6 +37,7 @@ public class Node {
 	private AskPredecessor ask_predecessor;
 	private TrajStore kvStore;
 	private Path tempDirForStore;
+	private DataProcessor writer;
 
 	/**
 	 * Constructor
@@ -77,6 +78,8 @@ public class Node {
 			conf.put(DaemonConfig.STORM_ROCKSDB_METADATA_STRING_CACHE_CAPACITY, 4000);
 			conf.put(DaemonConfig.STORM_ROCKSDB_METRIC_RETENTION_HOURS, 240);
 			kvStore = TrajStoreConfig.configure(conf);
+			writer = new DataProcessor(kvStore);
+			writer.processData();
 		} catch (TrajStoreException e) {
 			e.printStackTrace();
 		}
@@ -522,15 +525,8 @@ public class Node {
 	}
 
 	public boolean store(TrajPoint point){
-		try {
-			synchronized (kvStore){
-				kvStore.insert(point);
-			}
-			LOG.debug(point.toString());
-		} catch (TrajStoreException e) {
-			e.printStackTrace();
-			return false;
-		}
+		LOG.info("This Number " + localAddress.getPort());
+		writer.addToQueue(point);
 		return true;
 	}
 

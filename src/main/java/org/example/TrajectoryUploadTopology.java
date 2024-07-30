@@ -21,6 +21,7 @@ import org.apache.storm.StormSubmitter;
 import org.example.bolt.DataStoreBolt;
 import org.example.bolt.DataStoreofDHTBolt;
 import org.example.bolt.IndexStoreBolt;
+import org.example.spout.RandomPointSpout;
 import org.example.spout.RandomTrajectorySpout;
 import org.apache.storm.topology.TopologyBuilder;
 import org.apache.storm.tuple.Fields;
@@ -34,7 +35,7 @@ public class TrajectoryUploadTopology {
     public static void main(String[] args) throws Exception {
         boolean isCluster = false;
         String topoName = "null";
-        Integer trajNum = 1;
+        Integer trajNum = 1000;
         if (args.length > 0) {
             topoName = args[0];
             if (args.length > 1) {
@@ -56,10 +57,9 @@ public class TrajectoryUploadTopology {
         config.setNumWorkers(1);
 
         TopologyBuilder builder = new TopologyBuilder();
-        builder.setSpout("spout", new RandomTrajectorySpout(), 1);
+        builder.setSpout("spout", new RandomPointSpout(), 1);
         builder.setBolt("indexStore", new IndexStoreBolt(), 1).fieldsGrouping("spout", new Fields("edgeId"));
-        builder.setBolt("dataStore", new DataStoreofDHTBolt(), 1).fieldsGrouping("spout", new Fields("trajId"));
-
+        builder.setBolt("dataStore", new DataStoreBolt(), 1).fieldsGrouping("spout", new Fields("trajId"));
 
         if (!isCluster) {
             LocalCluster localCluster = new LocalCluster();

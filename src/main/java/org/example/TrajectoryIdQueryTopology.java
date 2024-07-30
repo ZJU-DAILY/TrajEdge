@@ -31,7 +31,7 @@ public class TrajectoryIdQueryTopology {
 
         boolean isCluster = false;
         String topoName = "trajectoryIdQuery";
-        int trajId = 11;
+        int trajId = 1;
         long startTime = -1L;
         long endTime = -1L;
         if (args.length > 0) {
@@ -62,7 +62,7 @@ public class TrajectoryIdQueryTopology {
 
         TopologyBuilder builder = new TopologyBuilder();
         builder.setSpout("spout", new IdQuerySpout(), 1);
-        builder.setBolt("idQuery", new QueryHandlerofDHTBolt(), 1).fieldsGrouping("spout", new Fields("trajId"));
+        builder.setBolt("idQuery", new QueryHandlerBolt(), 1).fieldsGrouping("spout", new Fields("trajId"));
 
 
         if (!isCluster) {

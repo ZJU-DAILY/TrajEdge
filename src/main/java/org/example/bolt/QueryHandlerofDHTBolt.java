@@ -2,7 +2,9 @@ package org.example.bolt;
 
 import com.esotericsoftware.minlog.Log;
 import java.io.PrintWriter;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -42,8 +44,17 @@ public class QueryHandlerofDHTBolt extends BaseBasicBolt {
     public void prepare(Map stormConf, TopologyContext context) {
         hosts = new ArrayList<>();
         helper = new Helper();
-        hosts.add("172.29.96.1:8002");
-        hosts.add("172.29.96.1:8001");
+        int nodeNum = 10, startPort = 10100;
+        String local_ip = null;
+        try {
+            local_ip = InetAddress.getLocalHost().getHostAddress();
+        } catch (UnknownHostException e1) {
+            // TODO Auto-generated catch block
+            e1.printStackTrace();
+        }
+        for(int i = startPort; i < startPort + nodeNum; ++i){
+            hosts.add(local_ip + ":" + i);
+        }
         Random random = new Random();
         int randomNumber = random.nextInt(hosts.size());
 
