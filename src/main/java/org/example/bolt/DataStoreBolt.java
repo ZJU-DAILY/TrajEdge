@@ -26,6 +26,8 @@ public class DataStoreBolt extends BaseBasicBolt {
     private TopologyContext context;
     private TrajStore store;
     private Path tempDirForStore;
+    private int processedTuples = 0;
+    private static final int LOG_INTERVAL = 1000; // 每处理1000个tuple记录一次日志
 
     @Override
     public void prepare(Map stormConf, TopologyContext context) {
@@ -66,6 +68,10 @@ public class DataStoreBolt extends BaseBasicBolt {
             e.printStackTrace();
         }
 
+        processedTuples++;
+        if (processedTuples % LOG_INTERVAL == 0) {
+            LOG.info("DataStoreBolt - Processed tuples: " + processedTuples);
+        }
     }
 
     @Override

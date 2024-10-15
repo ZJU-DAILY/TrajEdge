@@ -12,12 +12,25 @@ public class TrajPoint implements Serializable {
     Long timestamp;
     Long edgeId;
     Double distance;
+    Double oriLat;
+    Double oriLng;
 
     public TrajPoint(Integer trajId, Long timestamp, Long edgeId, Double distance) {
         this.trajId = trajId;
         this.timestamp = timestamp;
         this.edgeId = edgeId;
         this.distance = distance;
+        this.oriLat = 0.0;
+        this.oriLng = 0.0;
+    }
+
+    public TrajPoint(Integer trajId, Long timestamp, Long edgeId, Double distance, Double oriLat, Double oriLng) {
+        this.trajId = trajId;
+        this.timestamp = timestamp;
+        this.edgeId = edgeId;
+        this.distance = distance;
+        this.oriLat = oriLat;
+        this.oriLng = oriLng;
     }
 
     public TrajPoint(TrajPoint other) {
@@ -25,6 +38,8 @@ public class TrajPoint implements Serializable {
         this.timestamp = other.timestamp;
         this.edgeId = other.edgeId;
         this.distance = other.distance;
+        this.oriLat = other.oriLat;
+        this.oriLng = other.oriLng;
     }
 
     public Integer getTrajId() {
@@ -57,6 +72,22 @@ public class TrajPoint implements Serializable {
 
     public void setDistance(Double distance) {
         this.distance = distance;
+    }
+
+    public Double getOriLat() {
+        return oriLat;
+    }
+
+    public void setOriLat(Double oriLat) {
+        this.oriLat = oriLat;
+    }
+    
+    public Double getOriLng() {
+        return oriLng;
+    }
+
+    public void setOriLng(Double oriLng) {
+        this.oriLng = oriLng;
     }
 
     @Override

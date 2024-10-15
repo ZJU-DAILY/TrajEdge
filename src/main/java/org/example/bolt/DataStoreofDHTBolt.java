@@ -33,6 +33,9 @@ public class DataStoreofDHTBolt extends BaseBasicBolt {
     private List<String> hosts;
     private static InetSocketAddress localAddress;
     private static Helper helper;
+    private int processedTuples = 0;
+    private static final int LOG_INTERVAL = 1000;
+
     @Override
     public void prepare(Map stormConf, TopologyContext context) {
         hosts = new ArrayList<>();
@@ -132,6 +135,10 @@ public class DataStoreofDHTBolt extends BaseBasicBolt {
             LOG.debug(trajId + " " + response);
         }
 
+        processedTuples++;
+        if (processedTuples % LOG_INTERVAL == 0) {
+            LOG.info("DataStoreofDHTBolt - Processed tuples: " + processedTuples);
+        }
     }
 
     @Override

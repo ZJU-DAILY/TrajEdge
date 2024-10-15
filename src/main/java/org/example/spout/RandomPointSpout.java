@@ -53,6 +53,12 @@ public class RandomPointSpout extends BaseRichSpout {
         return c.getTime();
     }
 
+    private int sentTuples = 0;
+    private int totalTuples;
+    private boolean finished = false;
+
+    private static final int LOG_INTERVAL = 1000; // 每发送1000个tuple记录一次日志
+
     @Override
     public void open(Map<String, Object> conf, TopologyContext context, SpoutOutputCollector collector) {
         maxTrajectoryIndex = (Integer) conf.get("trajNum");
@@ -62,21 +68,41 @@ public class RandomPointSpout extends BaseRichSpout {
         list = path.list();
         values = new ArrayList<>();
         readFromFile();
-        LOG.info("read file done");
+        totalTuples = values.size();
+        LOG.info("read file done, total tuples: " + totalTuples);
     }
 
     @Override
     public void nextTuple() {
-        Utils.sleep(100);
-        if(maxTrajectoryIndex < 0)return;
-        collector.emit(values.get(pointer), pointer);
-        maxTrajectoryIndex--;
-        if(!values.get(pointer).get(0).equals(lastTrajId)){
-            lastTrajId = (Integer) values.get(pointer).get(0);
-            LOG.info("Start upload of trajectory: " + lastTrajId);
-            LOG.info("maxTrajectoryIndex: " + maxTrajectoryIndex);
+        if (finished) {
+            Utils.sleep(100);
+            return;
         }
-        pointer++;
+
+        if (sentTuples < totalTuples) {
+            collector.emit(values.get(pointer), pointer);
+            sentTuples++;
+            
+            // 每发送LOG_INTERVAL个tuple，记录一次积压情况
+            if (sentTuples % LOG_INTERVAL == 0) {
+                int pendingTuples = totalTuples - sentTuples;
+                LOG.info("RandomPointSpout - Pending tuples: " + pendingTuples + 
+                         ", Sent tuples: " + sentTuples + 
+                         ", Total tuples: " + totalTuples);
+            }
+
+            if(!values.get(pointer).get(0).equals(lastTrajId)){
+                lastTrajId = (Integer) values.get(pointer).get(0);
+                LOG.info("Start upload of trajectory: " + lastTrajId);
+                LOG.info("maxTrajectoryIndex: " + maxTrajectoryIndex);
+            }
+            pointer++;
+        } else {
+            // 所有tuple都已发送，发出结束信号
+            collector.emit(new Values("END_OF_STREAM", -1L, -1L, -1.0), "END");
+            finished = true;
+            LOG.info("All tuples have been processed. Sent end-of-stream signal.");
+        }
     }
 
     public void readFromFile() {

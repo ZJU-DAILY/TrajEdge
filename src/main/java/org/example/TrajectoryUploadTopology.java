@@ -33,6 +33,7 @@ import org.apache.storm.tuple.Fields;
 public class TrajectoryUploadTopology {
 
     public static void main(String[] args) throws Exception {
+        System.setProperty("log4j.configurationFile", "log4j2.xml");
         boolean isCluster = false;
         String topoName = "null";
         Integer trajNum = 1000;
@@ -50,15 +51,15 @@ public class TrajectoryUploadTopology {
         config.put("trajNum", trajNum);
         if (!isCluster) {
             config.setDebug(false);
-            config.put("data.src", "F:/File-D/mapOut/");
-            config.put("data.index.dest", "F:/IndexStoreTest/");
-            config.put("data.dest", "F:/RocksDbStoreTest/");
+            config.put("data.src", "C:\\Users\\HeAlec\\Desktop\\学院_实验室\\毕设\\代码\\TrajEdge\\data\\geolife\\mapTraj\\");
+            config.put("data.index.dest", "C:\\Users\\HeAlec\\Desktop\\学院_实验室\\毕设\\代码\\TrajEdge\\output\\index\\");
+            config.put("data.dest", "C:\\Users\\HeAlec\\Desktop\\学院_实验室\\毕设\\代码\\TrajEdge\\output\\data\\");
         }
         config.setNumWorkers(1);
 
         TopologyBuilder builder = new TopologyBuilder();
         builder.setSpout("spout", new RandomPointSpout(), 1);
-        builder.setBolt("indexStore", new IndexStoreBolt(), 1).fieldsGrouping("spout", new Fields("edgeId"));
+        // builder.setBolt("indexStore", new IndexStoreBolt(), 1).fieldsGrouping("spout", new Fields("edgeId"));
         builder.setBolt("dataStore", new DataStoreBolt(), 1).fieldsGrouping("spout", new Fields("trajId"));
 
         if (!isCluster) {

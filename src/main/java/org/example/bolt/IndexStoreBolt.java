@@ -1,136 +1,137 @@
 package org.example.bolt;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import org.apache.storm.Config;
-import org.apache.storm.blobstore.AtomicOutputStream;
-import org.apache.storm.blobstore.BlobStoreAclHandler;
-import org.apache.storm.blobstore.LocalFsBlobStore;
-import org.apache.storm.generated.AuthorizationException;
-import org.apache.storm.generated.KeyAlreadyExistsException;
-import org.apache.storm.generated.KeyNotFoundException;
-import org.apache.storm.generated.SettableBlobMeta;
-import org.apache.storm.nimbus.NimbusInfo;
 import org.apache.storm.task.TopologyContext;
 import org.apache.storm.topology.BasicOutputCollector;
 import org.apache.storm.topology.OutputFieldsDeclarer;
 import org.apache.storm.topology.base.BaseBasicBolt;
 import org.apache.storm.tuple.Tuple;
-import org.apache.storm.utils.Utils;
+import org.rocksdb.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// "trajId", "edgeId", "dist"
+import java.nio.ByteBuffer;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+
 public class IndexStoreBolt extends BaseBasicBolt {
     private static final Logger LOG = LoggerFactory.getLogger(IndexStoreBolt.class);
     private Map<String, Object> stormConf;
     private TopologyContext context;
-    // 轨迹id的最大值
-    private static Integer MAX_TRAJID_NUM = 5000;
-    private LocalFsBlobStore store = null;
+    private static final int MAX_TRAJID_NUM = 5000;
+    private RocksDB db;
+    private String dbPath;
 
-    private String index2dest;
+    private ConcurrentHashMap<Long, Set<Integer>> inMemoryIndex;
+    private ScheduledExecutorService scheduler;
+    private static final int FLUSH_INTERVAL_SECONDS = 60;
+    private static final int BATCH_SIZE = 1000;
+    private AtomicLong processedTuples;
+    private static final int LOG_INTERVAL = 10000; // Log every 10000 tuples
 
     @Override
     public void prepare(Map stormConf, TopologyContext context) {
         this.stormConf = stormConf;
         this.context = context;
-        index2dest = (String) stormConf.get("data.index.dest");
-        this.store = initLocalFs();
+        this.dbPath = (String) stormConf.get("data.index.dest");
+        this.inMemoryIndex = new ConcurrentHashMap<>();
+        this.scheduler = Executors.newScheduledThreadPool(1);
+        this.processedTuples = new AtomicLong(0);
+
+        initRocksDB();
+        scheduler.scheduleAtFixedRate(this::flushToDisk, FLUSH_INTERVAL_SECONDS, FLUSH_INTERVAL_SECONDS, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(this::logProgress, 10, 10, TimeUnit.SECONDS);
     }
 
-    private LocalFsBlobStore initLocalFs() {
-        LocalFsBlobStore store = new LocalFsBlobStore();
-
-        Map<String, Object> conf = Utils.readStormConfig();
-        conf.put(Config.STORM_ZOOKEEPER_PORT, this.stormConf.get("storm.zookeeper.port"));
-        conf.put(Config.STORM_LOCAL_DIR, this.index2dest);
-        conf.put(Config.STORM_PRINCIPAL_TO_LOCAL_PLUGIN, "org.apache.storm.security.auth.DefaultPrincipalToLocal");
-        NimbusInfo nimbusInfo = new NimbusInfo("localhost", 0, false);
-        store.prepare(conf, null, nimbusInfo, null);
-        return store;
+    private void initRocksDB() {
+        try {
+            Options options = new Options().setCreateIfMissing(true);
+            db = RocksDB.open(options, dbPath);
+        } catch (RocksDBException e) {
+            LOG.error("Failed to initialize RocksDB", e);
+            throw new RuntimeException(e);
+        }
     }
 
-    Set<Integer> deserialize(byte[] values) {
+    private Set<Integer> deserialize(byte[] values) {
         Set<Integer> sets = new HashSet<>();
-        int length = ByteBuffer.wrap(values, 0, 4).getInt();
-        for (int i = 0; i < length; ++i) {
-            int v = ByteBuffer.wrap(values, 4 + i * 4, 4).getInt();
-            sets.add(v);
+        ByteBuffer buffer = ByteBuffer.wrap(values);
+        int length = buffer.getInt();
+        for (int i = 0; i < length; i++) {
+            sets.add(buffer.getInt());
         }
         return sets;
     }
 
-    byte[] serialize(Set<Integer> sets) {
-        byte[] p = new byte[(sets.size() + 1) * 4];
-        ByteBuffer values = ByteBuffer.wrap(p);
-        values.putInt(sets.size());
+    private byte[] serialize(Set<Integer> sets) {
+        ByteBuffer buffer = ByteBuffer.allocate((sets.size() + 1) * 4);
+        buffer.putInt(sets.size());
         for (Integer v : sets) {
-            values.putInt(v);
+            buffer.putInt(v);
         }
-        return p;
-    }
-
-    private void insert(Integer trajId, Long edgeId) throws AuthorizationException, KeyAlreadyExistsException {
-        SettableBlobMeta metadata = new SettableBlobMeta(BlobStoreAclHandler
-            .WORLD_EVERYTHING);
-        try (AtomicOutputStream outputStream = store.createBlob(edgeId.toString(), metadata, null)) {
-            Set<Integer> sets = new HashSet<>();
-            sets.add(trajId);
-            outputStream.write(serialize(sets));
-        } catch (IOException ex) {
-            throw new RuntimeException(ex);
-        }
-    }
-
-    private void upsert(Integer trajId, Long edgeId)
-        throws IOException, AuthorizationException, KeyAlreadyExistsException, KeyNotFoundException {
-        // 1. read
-        byte[] out = new byte[MAX_TRAJID_NUM * 4];
-        Set<Integer> old = null;
-        try (InputStream in = store.getBlob(edgeId.toString(), null)) {
-            in.read(out);
-            // 4.update
-            old = deserialize(out);
-            old.add(trajId);
-            // 2. check
-        } catch (KeyNotFoundException e) {
-            // No this key, insert case.
-            LOG.debug("edgeId {}, create {}", edgeId, trajId);
-            // 3. write
-            insert(trajId, edgeId);
-        }
-        if (old != null) {
-            if (old.isEmpty()) {
-                LOG.debug("edgeId {}, create {}, old set size {}", edgeId, trajId, old.size());
-                insert(trajId, edgeId);
-            } else {
-                LOG.debug("edgeId {}, update {}, old set size {}", edgeId, trajId, old.size());
-                try (AtomicOutputStream outputStream = store.updateBlob(edgeId.toString(), null)) {
-                    outputStream.write(serialize(old));
-                }
-            }
-
-        }
+        return buffer.array();
     }
 
     @Override
     public void execute(Tuple tuple, BasicOutputCollector collector) {
         Long edgeId = tuple.getLongByField("edgeId");
         Integer trajId = tuple.getIntegerByField("trajId");
-        try {
-            upsert(trajId, edgeId);
-        } catch (Exception e) {
-            e.printStackTrace();
+        
+        inMemoryIndex.computeIfAbsent(edgeId, k -> ConcurrentHashMap.newKeySet()).add(trajId);
+        
+        long count = processedTuples.incrementAndGet();
+        if (count % LOG_INTERVAL == 0) {
+            LOG.info("Processed {} tuples", count);
         }
+        
+        if (inMemoryIndex.size() >= BATCH_SIZE) {
+            flushToDisk();
+        }
+    }
 
+    private void flushToDisk() {
+        try (WriteBatch batch = new WriteBatch()) {
+            for (Map.Entry<Long, Set<Integer>> entry : inMemoryIndex.entrySet()) {
+                Long edgeId = entry.getKey();
+                Set<Integer> newTrajIds = entry.getValue();
+                
+                byte[] key = edgeId.toString().getBytes();
+                byte[] existingValue = db.get(key);
+                Set<Integer> existingTrajIds = existingValue != null ? deserialize(existingValue) : new HashSet<>();
+                
+                existingTrajIds.addAll(newTrajIds);
+                batch.put(key, serialize(existingTrajIds));
+            }
+            db.write(new WriteOptions(), batch);
+            inMemoryIndex.clear();
+        } catch (RocksDBException e) {
+            LOG.error("Error flushing to RocksDB", e);
+        }
     }
 
     @Override
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
+    }
+
+    @Override
+    public void cleanup() {
+        flushToDisk();
+        scheduler.shutdown();
+        try {
+            scheduler.awaitTermination(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            LOG.error("Error shutting down scheduler", e);
+        }
+        if (db != null) {
+            db.close();
+        }
+    }
+
+    private void logProgress() {
+        LOG.info("Total processed tuples: {}, Current in-memory index size: {}", 
+                 processedTuples.get(), inMemoryIndex.size());
     }
 }
