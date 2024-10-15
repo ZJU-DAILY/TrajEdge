@@ -107,7 +107,7 @@ public class XZTSFC implements Serializable {
       }
       ranges = getMaxLevelSequenceCodeRange(level, referencedQuery, ranges, remaining, timeBin);
     }
-    ranges = mergeCodeRange(ranges);
+    // ranges = mergeCodeRange(ranges);
     return ranges;
   }
 

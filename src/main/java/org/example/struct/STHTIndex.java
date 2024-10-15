@@ -73,7 +73,6 @@ public class STHTIndex {
         ZonedDateTime enTime = Instant.ofEpochMilli(endTime).atZone(ZoneId.systemDefault());
         TimeLine timeLine = new TimeLine(stTime, enTime);
         List<CodingRange> ranges = xztCoding.rawRangesAfterCoding(List.of(timeLine));
-
         Set<String[]> st = new HashSet<>();
 
         for(CodingRange range : ranges){
@@ -83,11 +82,13 @@ public class STHTIndex {
             res[1] = xztCoding.getRawCode(array);
             st.add(res);
 
-            res = new String[2];
-            array = range.getUpper();
-            res[0] = String.valueOf(xztCoding.getBinNum(array));
-            res[1] = xztCoding.getRawCode(array);
-            st.add(res);
+            if(!range.getLower().equals(range.getUpper())){
+                res = new String[2];
+                array = range.getUpper();
+                res[0] = String.valueOf(xztCoding.getBinNum(array));
+                res[1] = xztCoding.getRawCode(array);
+                st.add(res);
+            }
         }
         return new ArrayList<>(st);
     }
@@ -140,7 +141,7 @@ public class STHTIndex {
         if(current == root){
             if(root.children.size() > 2){
                 current = new TrieNode(root, root.prefix + root.curValue, binNum, 3);
-                current.remoteNode = new Node(decideNode(binNum), "");
+                current.remoteNode = new Node(decideNode(binNum));
                 root.children.add(current);
                 return false;
             }
@@ -171,7 +172,7 @@ public class STHTIndex {
         return "50052";
     }
 
-    public List<Integer> query(long startTime, long endTime, double minLat, double maxLat, double minLng, double maxLng, List<Node> remoteNodes) {
+    public List<Integer> query(long startTime, long endTime, double minLat, double maxLat, double minLng, double maxLng, Set<Node> remoteNodes) {
         List<Integer> result = new ArrayList<>();
         List<String> spatialCode = generateSpacialKeyRanges(minLat, maxLat, minLng, maxLng);
         List<String[]> temporalCode = generateTemporalKeyRanges(startTime, endTime);
@@ -186,7 +187,7 @@ public class STHTIndex {
         return result;
     }
 
-    private List<Integer> queryTrie(String binNum, String combinedCode, List<Node> remoteNodes) {
+    private List<Integer> queryTrie(String binNum, String combinedCode, Set<Node> remoteNodes) {
         TrieNode current = root;
         List<Integer> result = new ArrayList<>();
 

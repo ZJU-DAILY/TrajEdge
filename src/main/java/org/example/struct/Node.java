@@ -9,15 +9,11 @@ import java.util.ArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import clojure.lang.LispReader;
-
 import org.apache.storm.DaemonConfig;
-import org.example.struct.STHTIndex.TrieNode;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.io.File;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -37,6 +33,10 @@ public class Node extends TrajectoryServiceGrpc.TrajectoryServiceImplBase{
     private String prefix;
     private ManagedChannel channel;
     private TrajectoryServiceGrpc.TrajectoryServiceBlockingStub blockingStub;
+
+    public Node(String id) {
+        this.id = id;
+    }
 
     public Node(String id, String prefix) {
         this.id = id;
@@ -62,7 +62,7 @@ public class Node extends TrajectoryServiceGrpc.TrajectoryServiceImplBase{
         String result = addData(trajectory);
 
         TrajectoryResponse response = TrajectoryResponse.newBuilder()
-                .setNextNodeId(result != null ? result : "")
+                .setNextNodeId(result)
                 .build();
         responseObserver.onNext(response);
         responseObserver.onCompleted();
@@ -85,8 +85,8 @@ public class Node extends TrajectoryServiceGrpc.TrajectoryServiceImplBase{
     private String addData(List<TrajPoint> trajectory) {
         boolean res = index.insertTrajectory(trajectory);
         if (res) {
-            storeData(trajectory);
-            return null;
+            // storeData(trajectory);
+            return "";
         } else {
             return String.valueOf(Integer.parseInt(id) + 1);
         }
@@ -109,29 +109,31 @@ public class Node extends TrajectoryServiceGrpc.TrajectoryServiceImplBase{
     public List<TrajPoint> readData(long startTime, long endTime, 
         double minLat, double maxLat, double minLng, double maxLng) {
         List<TrajPoint> trajPoints = new ArrayList<>();
-        List<Node> remoteNodes = new ArrayList<>();
+        Set<Node> remoteNodes = new HashSet<>();
         List<Integer> localTrajIds = index.query(startTime, endTime, minLat, maxLat, minLng, maxLng, remoteNodes);
 
         // 1. 本地读取
         for (Integer id : localTrajIds) {
             // try {
                 // List<TrajPoint> trajectoryPoints = store.query(id, startTime, endTime);
-                List<TrajPoint> trajectoryPoints = List.of(new TrajPoint(id, 0L, 0L, 0.0));
-                for (TrajPoint point : trajectoryPoints) {
-                    if (point.getOriLat() >= minLat && point.getOriLat() <= maxLat &&
-                        point.getOriLng() >= minLng && point.getOriLng() <= maxLng &&
-                        point.getTimestamp() >= startTime && point.getTimestamp() <= endTime) {
-                        trajPoints.add(point);
-                    }
-                }
+                // for (TrajPoint point : trajectoryPoints) {
+                //     if (point.getOriLat() >= minLat && point.getOriLat() <= maxLat &&
+                //         point.getOriLng() >= minLng && point.getOriLng() <= maxLng &&
+                //         point.getTimestamp() >= startTime && point.getTimestamp() <= endTime) {
+                //         trajPoints.add(point);
+                //     }
+                // }
             // } catch (TrajStoreException e) {
             //     LOG.error("Error reading local trajectory data for ID: " + id, e);
             // }
+            List<TrajPoint> trajectoryPoints = List.of(new TrajPoint(id, 0L, 0L, 0.0));
+            trajPoints.add(trajectoryPoints.get(0));
         }
 
         // 2. 远程读取
         for (Node node : remoteNodes) {
             try {
+                if(node == null)continue;
                 // 假设我们有一个方法来获取远程节点的连接信息
                 String remoteNodeAddress = getRemoteNodeAddress(node.id);
                 // 使用某种协议（如 gRPC 或 REST）来实现远程读取
