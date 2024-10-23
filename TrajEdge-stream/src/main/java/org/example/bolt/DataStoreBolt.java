@@ -30,7 +30,7 @@ public class DataStoreBolt extends BaseBasicBolt {
     public void prepare(Map stormConf, TopologyContext context) {
         this.stormConf = stormConf;
         this.context = context;
-        port = (Integer) this.stormConf.get("port");
+        port = 9999;
         ManagedChannel channel1 = ManagedChannelBuilder.forAddress("localhost", port)
             .usePlaintext()
             .build();

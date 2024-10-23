@@ -43,23 +43,23 @@ public class TrajEdgeClient {
             List<TrajectoryPoint> trajectory = createTestTrajectory(i + 1, 1609459200L + i * stepTime, 1609559200L + i * stepTime, 30.0, 31.0, 120.0, 121.0);
             result = insertTrajectory(stub1, trajectory);
             i += 1;
-            break;
+            // break;
         }
         
         LOG.info("Insert to sub1 finished: " + result);
 
-        // List<TrajectoryPoint> trajectory2 = createTestTrajectory(i + 1, 1609459200L + i * stepTime, 1609559200L + i * stepTime, 31.0, 32.0, 121.0, 122.0);
+        List<TrajectoryPoint> trajectory2 = createTestTrajectory(i + 1, 1609459200L + i * stepTime, 1609559200L + i * stepTime, 31.0, 32.0, 121.0, 122.0);
 
-        // ManagedChannel channel2 = ManagedChannelBuilder.forAddress(result, port)
-        //     .usePlaintext()
-        //     .build();
+        ManagedChannel channel2 = ManagedChannelBuilder.forAddress(result, port)
+            .usePlaintext()
+            .build();
 
-        // TrajectoryServiceGrpc.TrajectoryServiceBlockingStub stub2 = TrajectoryServiceGrpc.newBlockingStub(channel2);
+        TrajectoryServiceGrpc.TrajectoryServiceBlockingStub stub2 = TrajectoryServiceGrpc.newBlockingStub(channel2);
 
-        // // Insert data into Node2
-        // result = insertTrajectory(stub2, trajectory2);
+        // Insert data into Node2
+        result = insertTrajectory(stub2, trajectory2);
         
-        // LOG.info("Insert to sub2 finished: " + result);
+        LOG.info("Insert to sub2 finished: " + result);
 
         // Read data from Node1
         List<TrajectoryPoint> readData1 = readTrajectoryData(stub1, 1609459000L, 1609559300L + (i + 1) * stepTime, 30.0, 31.0, 120.0, 121.0);

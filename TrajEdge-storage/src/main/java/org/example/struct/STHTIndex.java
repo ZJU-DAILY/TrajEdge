@@ -169,15 +169,19 @@ public class STHTIndex {
     }
 
     private String decideNode(String binNum){
-        String no = dockerName.substring("supervisor".length());
+        String no = dockerName.substring("supervisor-".length());
         if(no.isEmpty()){
            throw new RuntimeException("Can't get env of supervisor: " + dockerName);
         }
         Integer num = Integer.parseInt(no);
         num += ringSize;
-        
-        if((num % ringSize) < minBinNum)return "supervisor" + (num - 1) % ringSize;
-        return "supervisor" + (num + 1) % ringSize;
+        Integer nextNum;
+
+        if((num % ringSize) < minBinNum)nextNum = (num - 1) % ringSize;
+        else nextNum = (num + 1) % ringSize;
+        if(nextNum == 0)nextNum = ringSize;
+
+        return "supervisor-" + nextNum;
     }
 
     public List<Integer> query(long startTime, long endTime, double minLat, double maxLat, double minLng, double maxLng, Set<Node> remoteNodes) {

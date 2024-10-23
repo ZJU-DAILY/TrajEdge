@@ -30,6 +30,7 @@ public class Node extends TrajectoryServiceGrpc.TrajectoryServiceImplBase{
     private static final Logger LOG = LoggerFactory.getLogger(Node.class);
     private static final String projectPath = new File(".").getAbsolutePath();
     
+    private String dockerName;
     private Integer port;
     private String id; // 节点ID
     private STHTIndex index; // STHT索引
@@ -42,20 +43,34 @@ public class Node extends TrajectoryServiceGrpc.TrajectoryServiceImplBase{
     }
 
     public Node(String id, Integer port) {
+        this.dockerName = System.getenv("CONTAINER_ID");
         this.id = id;
         this.port = port;
         this.index = new STHTIndex();
-    
+        String dataPath = projectPath + "/output/";
+
+        // 检查并创建数据目录
+        File dataDir = new File(dataPath);
+        if (!dataDir.exists()) {
+            if (dataDir.mkdirs()) {
+                LOG.info("Created data directory: " + dataPath);
+            } else {
+                LOG.error("Failed to create data directory: " + dataPath);
+                throw new RuntimeException("Failed to create data directory");
+            }
+        }
+
         Map<String, Object> conf = new HashMap<>();
         conf.put(DaemonConfig.STORM_METRIC_STORE_CLASS, "org.example.trajstore.rocksdb.RocksDbStore");
-        conf.put(DaemonConfig.STORM_ROCKSDB_LOCATION, projectPath + "/output/data_" + id);
+        conf.put(DaemonConfig.STORM_ROCKSDB_LOCATION, dataPath + "data_" + id);
         conf.put(DaemonConfig.STORM_ROCKSDB_CREATE_IF_MISSING, true);
         conf.put(DaemonConfig.STORM_ROCKSDB_METADATA_STRING_CACHE_CAPACITY, 4000);
         conf.put(DaemonConfig.STORM_ROCKSDB_METRIC_RETENTION_HOURS, 240);
         try {
             store = TrajStoreConfig.configure(conf);
         } catch (TrajStoreException e) {
-            e.printStackTrace();
+            LOG.error("Failed to configure TrajStore", e);
+            throw new RuntimeException("Failed to configure TrajStore", e);
         }
     }
 
@@ -99,14 +114,13 @@ public class Node extends TrajectoryServiceGrpc.TrajectoryServiceImplBase{
                 synchronized (store) {
                     store.insert(point);
                 }
-                LOG.debug(point.toString());
+                LOG.info(this.dockerName + ": " + point.toString());
             } catch (TrajStoreException e) {
                 e.printStackTrace();
             }
         }
     }
 
-    // 这种是递归式的读取数据
     public List<TrajPoint> readData(long startTime, long endTime, 
         double minLat, double maxLat, double minLng, double maxLng) {
         LOG.info("Query Condition: " + startTime + " " + endTime + " " + 
@@ -119,6 +133,7 @@ public class Node extends TrajectoryServiceGrpc.TrajectoryServiceImplBase{
         // 1. 本地读取
         for (Integer id : localTrajIds) {
             try {
+                LOG.info("Read =>" + this.dockerName + ": " + id);
                 List<TrajPoint> trajectoryPoints = doQuery(id, startTime, endTime);
 
                 for (TrajPoint point : trajectoryPoints) {
@@ -173,7 +188,7 @@ public class Node extends TrajectoryServiceGrpc.TrajectoryServiceImplBase{
     }
 
     private String getRemoteNodeAddress(String nodeId) {
-        return nodeId + port;
+        return nodeId + ":" + port;
     }
 
     // 辅助方法：远程读取数据
