@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <!-- 设置Apache Curator的日志级别为ERROR -->
+        <Logger name="org.apache.curator" level="ERROR"/>
+        <!-- 设置Apache ZooKeeper的日志级别为ERROR -->
+        <Logger name="org.apache.zookeeper" level="ERROR"/>
+        <!-- 设置Apache Storm的日志级别为WARN -->
+        <Logger name="org.apache.storm" level="WARN"/>
+        
+        <!-- 保持你的应用日志级别为INFO -->
+        <Logger name="org.example" level="INFO"/>
+        
+        <!-- 添加这个 Logger 配置 -->
+        <Logger name="org.example.trajstore.rocksdb.RocksDbStore" level="WARN"/>
+        
+        <Root level="INFO">
+            <AppenderRef ref="Console"/>
+        </Root>
+    </Loggers>
+</Configuration>

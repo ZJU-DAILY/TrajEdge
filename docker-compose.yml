@@ -1,0 +1,76 @@
+   version: '2'
+   
+   services:
+     zookeeper:
+       image: zookeeper:3.5.9
+       container_name: zookeeper
+       restart: always
+       networks:
+           - storm-net
+    
+     nimbus:
+       image: storm:2.5.0
+       container_name: nimbus
+       command: storm nimbus
+       depends_on:
+         - zookeeper
+       restart: always
+       ports:
+         - 6627:6627
+       networks:
+         - storm-net
+    
+     supervisor:
+       image: storm:2.5.0
+       container_name: supervisor-1
+       command: storm supervisor
+       depends_on:
+         - nimbus
+         - zookeeper
+       restart: always
+       networks:
+         - storm-net
+       environment:
+         - CONTAINER_ID=supervisor-1
+         
+     supervisor:
+       image: storm:2.5.0
+       container_name: supervisor-2
+       command: storm supervisor
+       depends_on:
+         - nimbus
+         - zookeeper
+       restart: always
+       networks:
+         - storm-net
+       environment:
+         - CONTAINER_ID=supervisor-2
+
+     supervisor:
+       image: storm:2.5.0
+       container_name: supervisor-3
+       command: storm supervisor
+       depends_on:
+         - nimbus
+         - zookeeper
+       restart: always
+       networks:
+         - storm-net
+       environment:
+         - CONTAINER_ID=supervisor-3
+
+     ui:
+       image: storm:2.5.0
+       container_name: ui
+       command: storm ui
+       depends_on:
+         - nimbus
+       restart: always
+       ports:
+         - 8980:8080
+       networks:
+         - storm-net
+    
+   networks:
+     storm-net:
+       driver: bridge
