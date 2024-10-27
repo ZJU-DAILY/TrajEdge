@@ -24,7 +24,7 @@ public class DataStoreBolt extends BaseBasicBolt {
     private TrajectoryServiceGrpc.TrajectoryServiceBlockingStub stub;
     private Integer port;
     private List<TrajectoryPoint> buffer;
-    private static final int BUFFER_SIZE = 1000; // 缓冲区大小
+    private static final int BUFFER_SIZE = 100; // 缓冲区大小
     
     @Override
     public void prepare(Map stormConf, TopologyContext context) {
@@ -36,7 +36,7 @@ public class DataStoreBolt extends BaseBasicBolt {
             .build();
         stub = TrajectoryServiceGrpc.newBlockingStub(channel1);
         buffer = new ArrayList<>(BUFFER_SIZE);
-        LOG.debug("data store is prepared...");
+        LOG.info("data store is prepared...");
     }
 
     @Override
@@ -83,7 +83,7 @@ public class DataStoreBolt extends BaseBasicBolt {
         }
 
         buffer.clear();
-        LOG.debug("Flushed {} points to storage", BUFFER_SIZE);
+        LOG.info("Flushed {} points to storage", BUFFER_SIZE);
     }
 
     private String insertTrajectory(TrajectoryServiceGrpc.TrajectoryServiceBlockingStub stub, List<TrajectoryPoint> trajectory) {

@@ -34,25 +34,31 @@ public class TrajectoryUploadTopology {
         System.setProperty("log4j.configurationFile", "log4j2.xml");
         boolean isCluster = false;
         String topoName = "null";
-        Integer trajNum = 1000;
+        String trajNum = "1000";
         if (args.length > 0) {
             topoName = args[0];
             if (args.length > 1) {
                 isCluster = true;
             }
             if (args.length > 2) {
-                trajNum = Integer.valueOf(args[2]);
+                trajNum = args[2];
             }
         }
 
         Config config = new Config();
         config.put("trajNum", trajNum);
-        if (!isCluster) {
-            config.setDebug(false);
-            config.put("data.src", "C:\\Users\\HeAlec\\Desktop\\学院_实验室\\毕设\\代码\\TrajEdge\\data\\geolife\\mapTraj\\");
-            config.put("data.index.dest", "C:\\Users\\HeAlec\\Desktop\\学院_实验室\\毕设\\代码\\TrajEdge\\output\\index\\");
-            config.put("data.dest", "C:\\Users\\HeAlec\\Desktop\\学院_实验室\\毕设\\代码\\TrajEdge\\output\\data\\");
-        }
+        // if (!isCluster) {
+        //     config.setDebug(false);
+        //     config.put("data.src", "/home/hch/PROJECT/data/geolife/trajectory/");
+        //     // config.put("data.index.dest", "C:\\Users\\HeAlec\\Desktop\\学院_实验室\\毕设\\代码\\TrajEdge\\output\\index\\");
+        //     // config.put("data.dest", "C:\\Users\\HeAlec\\Desktop\\学院_实验室\\毕设\\代码\\TrajEdge\\output\\data\\");
+        // }
+        // else{
+            
+        //     // config.put("data.index.dest", "~/PROJECT/data/geolife/trajectory/");
+        //     // config.put("data.dest", "C:\\Users\\HeAlec\\Desktop\\学院_实验室\\毕设\\代码\\TrajEdge\\output\\data\\");
+        // }
+        config.put("data.src", "/opt/data/trajectory/");
         config.setNumWorkers(1);
 
         TopologyBuilder builder = new TopologyBuilder();

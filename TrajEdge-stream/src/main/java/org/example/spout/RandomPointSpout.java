@@ -36,32 +36,22 @@ public class RandomPointSpout extends BaseRichSpout {
     private static final Logger LOG = LoggerFactory.getLogger(RandomPointSpout.class);
     private SpoutOutputCollector collector;
     private Integer pointer = 0;
-    private Integer m = 1;
-    private Integer trajIdPointer = 0;
     private String[] list;
     private List<Values> values;
-    private Integer maxTrajectoryIndex = 1000;
+    private Long maxTrajectoryIndex = 1000L;
 
     private String dataSrc;
-
-    private List<Integer> msgIds;
     private Integer lastTrajId = -1;
-
-    private static Date seconds(int seconds) {
-        Calendar c = new GregorianCalendar(2014, 1, 1);
-        c.add(Calendar.SECOND, seconds);
-        return c.getTime();
-    }
-
     private int sentTuples = 0;
     private int totalTuples;
     private boolean finished = false;
 
-    private static final int LOG_INTERVAL = 1000; // 每发送1000个tuple记录一次日志
+    private static final int LOG_INTERVAL = 100; // 每发送1000个tuple记录一次日志
 
     @Override
     public void open(Map<String, Object> conf, TopologyContext context, SpoutOutputCollector collector) {
-        maxTrajectoryIndex = (Integer) conf.get("trajNum");
+        maxTrajectoryIndex = Long.parseLong((String) conf.get("trajNum"));
+        LOG.info("trajNum: {}", maxTrajectoryIndex);
         this.dataSrc = (String) conf.get("data.src");
         this.collector = collector;
         File path = new File(this.dataSrc);
@@ -79,7 +69,7 @@ public class RandomPointSpout extends BaseRichSpout {
             return;
         }
 
-        if (sentTuples < totalTuples) {
+        if (sentTuples < values.size()) {
             collector.emit(values.get(pointer), pointer);
             sentTuples++;
             
@@ -99,7 +89,7 @@ public class RandomPointSpout extends BaseRichSpout {
             pointer++;
         } else {
             // 所有tuple都已发送，发出结束信号
-            collector.emit(new Values("END_OF_STREAM", -1L, -1L, -1.0), "END");
+            // collector.emit(new Values(-1, -1L, -1L, -0.0, -0.0, -0.0), "END");
             finished = true;
             LOG.info("All tuples have been processed. Sent end-of-stream signal.");
         }
@@ -108,16 +98,19 @@ public class RandomPointSpout extends BaseRichSpout {
     public void readFromFile() {
         try {
             for (String file : list) {
-//                LOG.info("Trajectory id: {}", file);
+               LOG.info("Trajectory id: {}", file);
+                if(values.size() > this.maxTrajectoryIndex)break;
                 BufferedReader in = new BufferedReader(new FileReader(this.dataSrc + file));
                 String str;
                 while ((str = in.readLine()) != null) {
-                    String[] edges = str.split(",");
-                    Long timestamp = 0L;
-                    for (String edgeStr : edges) {
+                    String[] points = str.split("\n");
+                    for (String point : points) {
                         int trajId = Integer.parseInt(file);
-                        long edge = Long.parseLong(edgeStr);
-                        values.add(new Values(trajId, timestamp, edge, 0.0));
+                        String[] info = point.split(" ");
+                        double lat = Double.parseDouble(info[0]);
+                        double lng = Double.parseDouble(info[1]);
+                        long timestamp = Long.parseLong(info[2]);
+                        values.add(new Values(trajId, timestamp, 0L, 0.0, lat, lng));
                         timestamp++;
                     }
                 }
@@ -139,8 +132,7 @@ public class RandomPointSpout extends BaseRichSpout {
 
     @Override
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
-//        declarer.declare(new Fields("trajId", "timestamp", "lat", "lng"));
-        declarer.declare(new Fields("trajId", "timestamp", "edgeId", "dist"));
+        declarer.declare(new Fields("trajId", "timestamp", "edgeId", "dist", "oriLat", "oriLng"));
     }
 
 }
