@@ -13,43 +13,33 @@ import org.slf4j.LoggerFactory;
 import org.apache.storm.DaemonConfig;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.HashSet;
-import java.util.Set;
 import java.io.File;
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
-import io.grpc.stub.StreamObserver;
-
-import org.example.grpc.TrajectoryServiceGrpc;
-import org.example.grpc.TrajectoryRequest;
-import org.example.grpc.TrajectoryResponse;
-import org.example.grpc.TrajectoryPoint;
 
 
-public class Node extends TrajectoryServiceGrpc.TrajectoryServiceImplBase{
+public class Node{
     private static final Logger LOG = LoggerFactory.getLogger(Node.class);
     private static final String projectPath = new File(".").getAbsolutePath();
+
     
     private String dockerName;
-    private Integer port;
-    private String id; // 节点ID
-    private STHTIndex index; // STHT索引
+    private String prefix;
+    // child/neigh/parent prefix => docker name
+    private Map<String, String> routingEntry;
+    private List<Integer> trajIds;
     private TrajStore store;
-    private ManagedChannel channel;
-    private TrajectoryServiceGrpc.TrajectoryServiceBlockingStub blockingStub;
 
-    public Node(String id) {
-        this.id = id;
+    public Node(String prefix) {
+        this.prefix = prefix;
     }
 
-    public Node(String id, Integer port) {
-        this.dockerName = System.getenv("CONTAINER_ID");
-        this.id = id;
-        this.port = port;
-        this.index = new STHTIndex();
-        String dataPath = projectPath + "/output/";
+    public Node(String prefix, Map<String, String> routingEntry, String dockerName) {
+        this.dockerName = dockerName;
+        this.prefix = prefix;
+        this.routingEntry = routingEntry;
+        this.trajIds = new ArrayList<>();
 
         // 检查并创建数据目录
+        String dataPath = projectPath + "/output/";
         File dataDir = new File(dataPath);
         if (!dataDir.exists()) {
             if (dataDir.mkdirs()) {
@@ -62,7 +52,7 @@ public class Node extends TrajectoryServiceGrpc.TrajectoryServiceImplBase{
 
         Map<String, Object> conf = new HashMap<>();
         conf.put(DaemonConfig.STORM_METRIC_STORE_CLASS, "org.example.trajstore.rocksdb.RocksDbStore");
-        conf.put(DaemonConfig.STORM_ROCKSDB_LOCATION, dataPath + "data_" + id);
+        conf.put(DaemonConfig.STORM_ROCKSDB_LOCATION, dataPath + "data_" + prefix);
         conf.put(DaemonConfig.STORM_ROCKSDB_CREATE_IF_MISSING, true);
         conf.put(DaemonConfig.STORM_ROCKSDB_METADATA_STRING_CACHE_CAPACITY, 4000);
         conf.put(DaemonConfig.STORM_ROCKSDB_METRIC_RETENTION_HOURS, 240);
@@ -74,67 +64,120 @@ public class Node extends TrajectoryServiceGrpc.TrajectoryServiceImplBase{
         }
     }
 
-    @Override
-    public void addTrajectoryData(TrajectoryRequest request, StreamObserver<TrajectoryResponse> responseObserver) {
-        List<TrajPoint> trajectory = convertToTrajPoints(request.getPointsList());
-        String result = addData(trajectory);
+    // key1 比 key2
+    public Integer calDistanceInKey(String key1, String key2) {
+        int m = key1.length();
+        int n = key2.length();
+        int[][] dp = new int[m + 1][n + 1];
 
-        TrajectoryResponse response = TrajectoryResponse.newBuilder()
-                .setNextNodeId(result)
-                .build();
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
-    }
-
-    @Override
-    public void readTrajectoryData(TrajectoryRequest request, StreamObserver<TrajectoryResponse> responseObserver) {
-        List<TrajPoint> trajPoints = readData(request.getStartTime(), request.getEndTime(),
-                request.getMinLat(), request.getMaxLat(), request.getMinLng(), request.getMaxLng());
-
-        TrajectoryResponse.Builder responseBuilder = TrajectoryResponse.newBuilder();
-        for (TrajPoint point : trajPoints) {
-            responseBuilder.addPoints(convertToTrajectoryPoint(point));
+        // 初始化第一行和第一列
+        for (int i = 0; i <= m; i++) {
+            dp[i][0] = i;
+        }
+        for (int j = 0; j <= n; j++) {
+            dp[0][j] = j;
         }
 
-        responseObserver.onNext(responseBuilder.build());
-        responseObserver.onCompleted();
-    }
-
-    private String addData(List<TrajPoint> trajectory) {
-        String nextNode = index.insertTrajectory(trajectory);
-        if (nextNode.isEmpty()) {
-            storeData(trajectory);
-        }
-        return nextNode;
-    }
-
-    private void storeData(List<TrajPoint> trajectory) {
-        for (TrajPoint point : trajectory) {
-            try {
-                synchronized (store) {
-                    store.insert(point);
+        // 填充DP表
+        for (int i = 1; i <= m; i++) {
+            for (int j = 1; j <= n; j++) {
+                if (key1.charAt(i - 1) == key2.charAt(j - 1)) {
+                    dp[i][j] = dp[i - 1][j - 1];
+                } else {
+                    dp[i][j] = 1 + Math.min(
+                        dp[i - 1][j - 1],  // 替换
+                        Math.min(
+                            dp[i - 1][j],   // 删除
+                            dp[i][j - 1]    // 插入
+                        )
+                    );
                 }
-                LOG.info(this.dockerName + ": " + point.toString());
-            } catch (TrajStoreException e) {
-                e.printStackTrace();
+            }
+        }
+
+        return dp[m][n];
+    }
+
+        // 返回closest key以及对应的docker id
+    public String[] findKey(String key){
+        String[] res = new String[2]; res[0] = ""; res[1] = "";
+        if(key.equals(this.prefix)){
+            return res;
+        }
+        String closestKey = null;
+        Integer minDistance = Integer.MAX_VALUE;
+        
+        // Find the closest key in routing entries
+        for (String routingKey : routingEntry.keySet()) {
+            Integer distance = calDistanceInKey(key, routingKey);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestKey = routingKey;
+            }
+        }
+        
+        // Get the corresponding docker name for the closest key
+        if (closestKey != null) {
+            res[0] = closestKey;
+            res[1] = routingEntry.get(closestKey);
+        }
+
+        return res;
+    }
+
+    // 返回closest key以及对应的docker id
+    public String[] insert(String key, List<TrajPoint> trajectory){
+        String[] res = new String[2]; res[0] = ""; res[1] = "";
+
+        Integer trajId = trajectory.get(0).getTrajId();
+        if(key.equals(this.prefix)){
+            doStore(trajectory);
+            this.trajIds.add(trajId);
+            return res;
+        }
+        String closestKey = null;
+        Integer minDistance = Integer.MAX_VALUE;
+        
+        // Find the closest key in routing entries
+        for (String routingKey : routingEntry.keySet()) {
+            Integer distance = calDistanceInKey(key, routingKey);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestKey = routingKey;
+            }
+        }
+        
+        // Get the corresponding docker name for the closest key
+        if (closestKey != null) {
+            res[0] = closestKey;
+            res[1] = routingEntry.get(closestKey);
+            // You might want to forward the trajectory to the target node here
+            LOG.info("Forwarding trajectory " + trajId + " to node: " + res[1]);
+        }
+
+        return res;
+    }
+
+    private void doStore(List<TrajPoint> trajectory) {
+        synchronized (store) {
+            for (TrajPoint point : trajectory) {
+                try {
+                    store.insert(point);
+                    LOG.info(this.dockerName + ": " + point.toString());
+                } catch (TrajStoreException e) {
+                    e.printStackTrace();
+                }
             }
         }
     }
 
-    public List<TrajPoint> readData(long startTime, long endTime, 
-        double minLat, double maxLat, double minLng, double maxLng) {
-        LOG.info("Query Condition: " + startTime + " " + endTime + " " + 
-        minLat + " " + maxLat + " " + minLng + " " + maxLng);
-        
+    public List<TrajPoint> doRead(long startTime, long endTime, 
+            double minLat, double maxLat, double minLng, double maxLng) {
         List<TrajPoint> trajPoints = new ArrayList<>();
-        Set<Node> remoteNodes = new HashSet<>();
-        List<Integer> localTrajIds = index.query(startTime, endTime, minLat, maxLat, minLng, maxLng, remoteNodes);
-
-        // 1. 本地读取
-        for (Integer id : localTrajIds) {
+        for (Integer id : trajIds) {
             try {
                 LOG.info("Read =>" + this.dockerName + ": " + id);
-                List<TrajPoint> trajectoryPoints = doQuery(id, startTime, endTime);
+                List<TrajPoint> trajectoryPoints = rocksDbRead(id, startTime, endTime);
 
                 for (TrajPoint point : trajectoryPoints) {
                     if (point.getOriLat() >= minLat && point.getOriLat() <= maxLat &&
@@ -147,23 +190,10 @@ public class Node extends TrajectoryServiceGrpc.TrajectoryServiceImplBase{
                 LOG.error("Error reading local trajectory data for ID: " + id, e);
             }
         }
-
-        // 2. 远程读取
-        for (Node node : remoteNodes) {
-            try {
-                if(node == null)continue;
-                String remoteNodeAddress = getRemoteNodeAddress(node.id);
-                List<TrajPoint> remotePoints = remoteReadData(remoteNodeAddress, startTime, endTime, minLat, maxLat, minLng, maxLng);
-                trajPoints.addAll(remotePoints);
-            } catch (Exception e) {
-                LOG.error("Error reading remote data from node: " + node.id, e);
-            }
-        }
-
-        return trajPoints;
+        return trajPoints; // Add this return statement
     }
 
-    private List<TrajPoint> doQuery(Integer id, long startTime, long endTime) throws TrajStoreException{
+    private List<TrajPoint> rocksDbRead(Integer id, long startTime, long endTime) throws TrajStoreException{
         FilterOptions filter = new FilterOptions();
         List<TrajPoint> list = new ArrayList<>();
         if (id != -1) {
@@ -185,86 +215,5 @@ public class Node extends TrajectoryServiceGrpc.TrajectoryServiceImplBase{
             }
         }
         return list;
-    }
-
-    private String getRemoteNodeAddress(String nodeId) {
-        return nodeId + ":" + port;
-    }
-
-    // 辅助方法：远程读取数据
-    private List<TrajPoint> remoteReadData(String remoteNodeAddress, long startTime, long endTime,
-                                           double minLat, double maxLat, double minLng, double maxLng) {
-        LOG.info("Reading data from remote node: " + remoteNodeAddress);
-        
-        // 创建 gRPC channel 和 stub
-        channel = ManagedChannelBuilder.forTarget(remoteNodeAddress)
-            .usePlaintext() // 为了简单起见，这里使用不安全的连接。在生产环境中应该使用 SSL/TLS
-            .build();
-        blockingStub = TrajectoryServiceGrpc.newBlockingStub(channel);
-
-        try {
-            // 创建请求
-            TrajectoryRequest request = TrajectoryRequest.newBuilder()
-                .setStartTime(startTime)
-                .setEndTime(endTime)
-                .setMinLat(minLat)
-                .setMaxLat(maxLat)
-                .setMinLng(minLng)
-                .setMaxLng(maxLng)
-                .build();
-
-            // 发送 gRPC 请求并获取响应
-            TrajectoryResponse response = blockingStub.readTrajectoryData(request);
-
-            // 将 gRPC 响应转换为 TrajPoint 列表
-            List<TrajPoint> trajPoints = new ArrayList<>();
-            for (TrajectoryPoint point : response.getPointsList()) {
-                TrajPoint trajPoint = new TrajPoint(
-                    point.getTrajId(),
-                    point.getTimestamp(),
-                    point.getEdgeId(),
-                    point.getDistance(),
-                    point.getLat(),
-                    point.getLng()
-                );
-                trajPoints.add(trajPoint);
-            }
-
-            return trajPoints;
-        } catch (Exception e) {
-            LOG.error("Error reading data from remote node: " + remoteNodeAddress, e);
-            return new ArrayList<>();
-        } finally {
-            // 关闭 channel
-            if (channel != null && !channel.isShutdown()) {
-                channel.shutdown();
-            }
-        }
-    }
-
-    private List<TrajPoint> convertToTrajPoints(List<TrajectoryPoint> points) {
-        List<TrajPoint> trajPoints = new ArrayList<>();
-        for (TrajectoryPoint point : points) {
-            trajPoints.add(new TrajPoint(
-                    point.getTrajId(),
-                    point.getTimestamp(),
-                    point.getEdgeId(),
-                    point.getDistance(),
-                    point.getLat(),
-                    point.getLng()
-            ));
-        }
-        return trajPoints;
-    }
-
-    private TrajectoryPoint convertToTrajectoryPoint(TrajPoint point) {
-        return TrajectoryPoint.newBuilder()
-                .setTrajId(point.getTrajId())
-                .setTimestamp(point.getTimestamp())
-                .setEdgeId(point.getEdgeId())
-                .setDistance(point.getDistance())
-                .setLat(point.getOriLat())
-                .setLng(point.getOriLng())
-                .build();
     }
 }

@@ -1,6 +1,7 @@
 import random
 import math
 import subprocess
+from collections import deque
 
 # 经纬度范围S
 S_LAT_MIN = 35.0
@@ -45,29 +46,139 @@ def find_nearest(center, points):
             nearest_point = point
     return nearest_point
 
-def divide_and_assign(lat_min, lat_max, lon_min, lon_max, depth, points):
+class Node:
+    def __init__(self, prefix, lat_min, lat_max, lon_min, lon_max):
+        self.prefix = prefix
+        self.lat_min = lat_min
+        self.lat_max = lat_max
+        self.lon_min = lon_min
+        self.lon_max = lon_max
+        self.nearest_point = None
+        self.children = []
+        self.parent = None
+        self.left_neighbor = None
+        self.right_neighbor = None
+
+def build_tree(prefix, lat_min, lat_max, lon_min, lon_max, depth, points, parent=None):
+    node = Node(prefix, lat_min, lat_max, lon_min, lon_max)
+    node.parent = parent
+    
     if depth == 0:
-        return
+        return node
     
     center = find_center(lat_min, lat_max, lon_min, lon_max)
-    nearest_point = find_nearest(center, points)
-    # print(f"[ {lat_min},{lon_min},{lat_max},{lon_max} ]分配给最近的点：{points.index(nearest_point)}")
-    # docker_cmd = f"docker exec supervisor-{points.index(nearest_point)} bash -c 'export treeNode=x'"
-    docker_cmd = f"docker exec supervisor-{points.index(nearest_point)} bash -c" + 'echo $CONTAINER_ID'
-    subprocess.run(docker_cmd, shell=True)
+    node.nearest_point = find_nearest(center, points)
     
     if depth > 0:
         mid_lat = (lat_min + lat_max) / 2
         mid_lon = (lon_min + lon_max) / 2
         
-        # 左上
-        divide_and_assign(lat_min, mid_lat, lon_min, mid_lon, depth - 1, points)
-        # 右上
-        divide_and_assign(mid_lat, lat_max, lon_min, mid_lon, depth - 1, points)
-        # 左下
-        divide_and_assign(lat_min, mid_lat, mid_lon, lon_max, depth - 1, points)
-        # 右下
-        divide_and_assign(mid_lat, lat_max, mid_lon, lon_max, depth - 1, points)
+        # 创建四个子节点
+        lu = build_tree(prefix + "0", lat_min, mid_lat, lon_min, mid_lon, depth - 1, points, node)
+        ru = build_tree(prefix + "1", mid_lat, lat_max, lon_min, mid_lon, depth - 1, points, node)
+        ld = build_tree(prefix + "2", lat_min, mid_lat, mid_lon, lon_max, depth - 1, points, node)
+        rd = build_tree(prefix + "3", mid_lat, lat_max, mid_lon, lon_max, depth - 1, points, node)
+        
+        # 添加到children列表
+        node.children = [lu, ru, ld, rd]
+        
+        # 设置同层节点之间的左右邻居关系
+        lu.right_neighbor = ru
+        ru.left_neighbor = lu
+        
+        ld.right_neighbor = rd
+        rd.left_neighbor = ld
+        
+        # 设置上下层之间的左右邻居关系
+        lu.right_neighbor = ld
+        ld.left_neighbor = lu
+        
+        ru.right_neighbor = rd
+        rd.left_neighbor = ru
+    
+    return node
 
-# 开始递归分配
-divide_and_assign(S_LAT_MIN, S_LAT_MAX, S_LON_MIN, S_LON_MAX, h, points)
+def get_neighbors(node):
+    """获取节点的所有邻居节点"""
+    neighbors = []
+    
+    # 添加直接的左右邻居
+    if node.left_neighbor:
+        neighbors.append(node.left_neighbor)
+    if node.right_neighbor:
+        neighbors.append(node.right_neighbor)
+    
+    # # 通过父节点寻找其他邻居
+    # if node.parent:
+    #     parent_idx = node.parent.children.index(node)
+        
+    #     # 获取对角线方向的邻居
+    #     if parent_idx == 0:  # 左上角
+    #         if len(node.parent.children) > 3:
+    #             neighbors.append(node.parent.children[3])  # 右下角
+    #     elif parent_idx == 3:  # 右下角
+    #         neighbors.append(node.parent.children[0])  # 左上角
+    #     elif parent_idx == 1:  # 右上角
+    #         if len(node.parent.children) > 2:
+    #             neighbors.append(node.parent.children[2])  # 左下角
+    #     elif parent_idx == 2:  # 左下角
+    #         neighbors.append(node.parent.children[1])  # 右上角
+    
+    return neighbors
+
+def write_allocations(root, points):
+    # 清空所有现有的allocate文件
+    for i in range(1, len(points) + 1):
+        with open(f'../conf/allocate_{i}.txt', 'w') as file:
+            pass
+        with open(f'../conf/children_{i}.txt', 'w') as file:
+            pass
+        with open(f'../conf/parent_{i}.txt', 'w') as file:
+            pass
+        with open(f'../conf/neighbor_{i}.txt', 'w') as file:
+            pass
+    
+    # 使用队列进行层序遍历
+    queue = deque([root])
+    while queue:
+        node = queue.popleft()  # 修正了之前的 queue.queue.popleft()
+        if node.nearest_point is not None:
+            nodeId = points.index(node.nearest_point) + 1
+            
+            # 获取邻居节点信息
+            neighbors = get_neighbors(node)
+            neighbor_info = [f"{node.prefix}"]
+            for neighbor in neighbors:
+                if neighbor.nearest_point:
+                    neighbor_id = points.index(neighbor.nearest_point) + 1
+                    neighbor_info.append(f"{neighbor.prefix}:{neighbor_id}")
+            
+            # 写入节点信息和邻居信息
+            with open(f'../conf/allocate_{nodeId}.txt', 'a') as file:
+                file.write(f"{node.prefix}\n")
+            if neighbor_info:
+                 with open(f'../conf/neighbor_{nodeId}.txt', 'a') as file:
+                    file.write(",".join(neighbor_info) + "\n")
+            if node.parent:
+                with open(f'../conf/parent_{nodeId}.txt', 'a') as file:
+                    parent_id = points.index(node.parent.nearest_point) + 1
+                    file.write(f"{node.prefix}, {node.parent.prefix}:{parent_id}" + "\n")
+            # 孩子节点写入
+            children_info = [ f"{child.prefix}:{points.index(child.nearest_point) + 1}" for child in node.children if child.nearest_point != None]
+            if children_info:
+                with open(f'../conf/children_{nodeId}.txt', 'a') as file:
+                    file.write(f"{node.prefix}," + ",".join(children_info) + "\n")
+        
+        queue.extend(node.children)
+    
+    # 复制文件到Docker容器
+    # for i in range(1, len(points) + 1):
+    #     container_name = f'supervisor-{i}'
+    #     mkdir_conf = f"docker exec {container_name} mkdir -p /data/conf"
+    #     cp_to_docker = f"docker cp ../conf/allocate_{i}.txt {container_name}:/data/conf"
+    #     subprocess.run(mkdir_conf, shell=True)
+    #     subprocess.run(cp_to_docker, shell=True)
+
+# 修改主程序逻辑
+root = build_tree("#", S_LAT_MIN, S_LAT_MAX, S_LON_MIN, S_LON_MAX, h + 1, points)
+write_allocations(root, points)

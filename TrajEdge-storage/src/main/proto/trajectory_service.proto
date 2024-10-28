@@ -7,6 +7,7 @@ option java_outer_classname = "TrajectoryServiceProto";
 service TrajectoryService {
   rpc AddTrajectoryData (TrajectoryRequest) returns (TrajectoryResponse) {}
   rpc ReadTrajectoryData (TrajectoryRequest) returns (TrajectoryResponse) {}
+  rpc QueryByPrefix(QueryByPrefixRequest) returns (TrajectoryResponse) {}
 }
 
 message TrajectoryPoint {
@@ -31,4 +32,14 @@ message TrajectoryRequest {
 message TrajectoryResponse {
   repeated TrajectoryPoint points = 1;
   string next_node_id = 2;
+}
+
+message QueryByPrefixRequest {
+    string prefix = 1;
+    int64 startTime = 2;
+    int64 endTime = 3;
+    double minLat = 4;
+    double maxLat = 5;
+    double minLng = 6;
+    double maxLng = 7;
 }
