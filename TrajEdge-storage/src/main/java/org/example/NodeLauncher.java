@@ -7,7 +7,7 @@ public class NodeLauncher {
         int port = args.length != 1 ? 9999 : Integer.parseInt(args[0]);
         String nodeId = System.getenv("CONTAINER_ID");
 
-        NodesService ns = new NodesService(nodeId, port);
+        NodesService ns = new NodesService(nodeId, port, false);
         Server server = ServerBuilder.forPort(port)
                 .addService(ns)
                 .build()

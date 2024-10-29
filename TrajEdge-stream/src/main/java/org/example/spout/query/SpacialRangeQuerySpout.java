@@ -23,46 +23,63 @@ import org.slf4j.LoggerFactory;
  * @date 2023-11-22 15:44:05
  */
 public class SpacialRangeQuerySpout extends BaseRichSpout {
-
     private static final Logger LOG = LoggerFactory.getLogger(SpacialRangeQuerySpout.class);
-    SpoutOutputCollector collector;
-    boolean first = true;
-    private Integer queryNum = 0;
-    private List<Long> mockRange;
-    private int pointer = 0;
-//    private int all = 165279;
-    private int all = 10000;
+    private SpoutOutputCollector collector;
+    private List<Double> spacialRange;
+    private Random random;
+    private boolean finished = false;
 
     @Override
     public void open(Map<String, Object> conf, TopologyContext context, SpoutOutputCollector collector) {
         this.collector = collector;
-        queryNum = (Integer) conf.get("ratio") * all / 100;
-        Set<Long> uniqueRandomNumbers = generateUniqueRandomNumbers(0L, all, queryNum);
-        mockRange = new ArrayList<>(uniqueRandomNumbers);
+        this.random = new Random(10086);
+        int k = Integer.parseInt((String) conf.get("k"));
+        double maxLng = Double.parseDouble((String) conf.get("maxLng"));
+        double minLng = Double.parseDouble((String) conf.get("minLng"));
+        double maxLat = Double.parseDouble((String) conf.get("maxLat"));
+        double minLat = Double.parseDouble((String) conf.get("minLat"));
+        this.spacialRange = divideAndSelectRegion(k, maxLat, minLat, maxLng, minLng);
     }
 
-    private static Set<Long> generateUniqueRandomNumbers(long min, long max, int count) {
-        if (count > (max - min + 1) || max < min) {
-            throw new IllegalArgumentException("Invalid range or count");
-        }
-        long seed = 2;
-        Set<Long> uniqueNumbers = new HashSet<>();
-        Random random = new Random(seed);
 
-        while (uniqueNumbers.size() < count) {
-            long randomNumber = ((long) (random.nextDouble() * (max - min + 1))) + min;
-            uniqueNumbers.add(randomNumber);
-        }
+        /**
+     * 将区域等分并随机选择一个区域
+     * @param k 分数
+     * @param maxLat 最大纬度
+     * @param minLat 最小纬度
+     * @param maxLng 最大经度
+     * @param minLng 最小经度
+     * @return 随机选择的区域
+     */
+    public List<Double> divideAndSelectRegion(int k, double maxLat, double minLat, double maxLng, double minLng) {
+        double latStep = (maxLat - minLat) / k;
+        double lngStep = (maxLng - minLng) / k;
 
-        return uniqueNumbers;
+        int randomLatIndex = random.nextInt(k);
+        int randomLngIndex = random.nextInt(k);
+
+        double selectedMinLat = minLat + randomLatIndex * latStep;
+        double selectedMaxLat = selectedMinLat + latStep;
+        double selectedMinLng = minLng + randomLngIndex * lngStep;
+        double selectedMaxLng = selectedMinLng + lngStep;
+
+        List<Double> selectedRegion = new ArrayList<>();
+        selectedRegion.add(selectedMinLat);
+        selectedRegion.add(selectedMaxLat);
+        selectedRegion.add(selectedMinLng);
+        selectedRegion.add(selectedMaxLng);
+
+        return selectedRegion;
     }
 
     @Override
     public void nextTuple() {
-        Utils.sleep(100);
-        if (pointer < queryNum) {
-            collector.emit(new Values(1, mockRange.get(pointer),-1L, -1L));
-            pointer++;
+        if(finished) Utils.sleep(100);
+        else{
+            finished = true;
+            Long startTime = 1176341492L, endTime = 1343349080L;
+            collector.emit(new Values(startTime, endTime, spacialRange.get(0), 
+                spacialRange.get(1), spacialRange.get(2), spacialRange.get(3)));
         }
 
     }
@@ -77,6 +94,6 @@ public class SpacialRangeQuerySpout extends BaseRichSpout {
 
     @Override
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
-        declarer.declare(new Fields("queryId", "SpacialRange", "startTime", "endTime"));
+        declarer.declare(new Fields("startTime", "endTime", "minLat", "maxLat", "minLng", "maxLng"));
     }
 }

@@ -5,15 +5,13 @@ import org.example.coding.XZ2Coding;
 import org.example.coding.XZTCoding;
 import org.example.datatypes.TimeLine;
 import org.example.trajstore.TrajPoint;
-import org.example.struct.TrieNode;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.HashSet;
-
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,12 +69,13 @@ public class STHTIndex {
 
         String[] timeCode = encodeTime(startTime, endTime);
         String spatialCode = encodeSpatial(minLat, maxLat, minLng, maxLng);
-        return concatTimeAndSpace(timeCode[1], spatialCode);
+        Key tmp = new Key(timeCode[1], spatialCode);
+        return tmp.getKey();
     }
 
     public List<KeyRange> gKeyRanges(long startTime, long endTime, double minLat, 
     double maxLat, double minLng, double maxLng){
-        List<KeyRange> keyRanges = new ArrayList<>();
+        Set<KeyRange> dedupKeyRanges = new HashSet<>();
 
         List<CodingRange> sRanges = xz2Coding.rawRanges(minLng, minLat, maxLng, maxLat);
         ZonedDateTime stTime = Instant.ofEpochMilli(startTime).atZone(ZoneId.systemDefault());
@@ -88,14 +87,10 @@ public class STHTIndex {
             for(CodingRange sRange : sRanges){
                 Key lowKey = new Key(xztCoding.getRawCode(tRange.getLower()), xz2Coding.getRawCode(sRange.getLower()));
                 Key highKey = new Key(xztCoding.getRawCode(tRange.getUpper()), xz2Coding.getRawCode(sRange.getUpper()));
-                keyRanges.add(new KeyRange(lowKey, highKey));
+                dedupKeyRanges.add(new KeyRange(lowKey, highKey));
             }
         }
-        return keyRanges;
-    }
-
-    private String concatTimeAndSpace(String tCode, String sCode){
-        return tCode + sCode;
+        return new ArrayList<>(dedupKeyRanges);
     }
 
 }

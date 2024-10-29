@@ -63,12 +63,13 @@ public class TrajectoryUploadTopology {
 
         TopologyBuilder builder = new TopologyBuilder();
         builder.setSpout("spout", new RandomPointSpout(), 1);
-        builder.setBolt("dataStore", new DataStoreBolt(), 1).fieldsGrouping("spout", new Fields("trajId"));
+        builder.setBolt("dataStore", new DataStoreBolt(), 12).fieldsGrouping("spout", new Fields("trajId"));
 
         if (!isCluster) {
             LocalCluster localCluster = new LocalCluster();
             localCluster.submitTopology(topoName, config, builder.createTopology());
         } else {
+            config.setNumWorkers(1); 
             StormSubmitter.submitTopologyWithProgressBar(topoName, config, builder.createTopology());
         }
 

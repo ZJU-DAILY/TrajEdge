@@ -5,6 +5,7 @@ import org.example.trajstore.TrajStore;
 import org.example.trajstore.TrajStoreConfig;
 import org.example.trajstore.TrajStoreException;
 import org.example.trajstore.TrajPoint;
+import org.example.NodesService;
 import org.example.trajstore.FilterOptions;
 import java.util.ArrayList;
 import org.slf4j.Logger;
@@ -15,7 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.io.File;
 
-
+// 在实现中进行简化,不为时间key设立匹配规则,统一走rocksdb过滤
 public class Node{
     private static final Logger LOG = LoggerFactory.getLogger(Node.class);
     private static final String projectPath = new File(".").getAbsolutePath();
@@ -104,17 +105,8 @@ public class Node{
         if(key.equals(this.prefix)){
             return res;
         }
-        String closestKey = null;
-        Integer minDistance = Integer.MAX_VALUE;
-        
-        // Find the closest key in routing entries
-        for (String routingKey : routingEntry.keySet()) {
-            Integer distance = calDistanceInKey(key, routingKey);
-            if (distance < minDistance) {
-                minDistance = distance;
-                closestKey = routingKey;
-            }
-        }
+        String closestKey = NodesService.longestPrefixMatch(key, 
+        routingEntry.keySet().toArray(new String[0]));
         
         // Get the corresponding docker name for the closest key
         if (closestKey != null) {
@@ -139,13 +131,15 @@ public class Node{
         Integer minDistance = Integer.MAX_VALUE;
         
         // Find the closest key in routing entries
-        for (String routingKey : routingEntry.keySet()) {
-            Integer distance = calDistanceInKey(key, routingKey);
-            if (distance < minDistance) {
-                minDistance = distance;
-                closestKey = routingKey;
-            }
-        }
+        // for (String routingKey : routingEntry.keySet()) {
+        //     Integer distance = calDistanceInKey(key, routingKey);
+        //     if (distance < minDistance) {
+        //         minDistance = distance;
+        //         closestKey = routingKey;
+        //     }
+        // }
+        closestKey = NodesService.longestPrefixMatch(key, 
+        routingEntry.keySet().toArray(new String[0]));
         
         // Get the corresponding docker name for the closest key
         if (closestKey != null) {
@@ -159,11 +153,12 @@ public class Node{
     }
 
     private void doStore(List<TrajPoint> trajectory) {
+        LOG.info(this.dockerName + ", size: " + trajectory.size() + "insert into storage.");
+        LOG.info(this.dockerName + ", trajectory id: " + trajectory.get(0).getTrajId());
         synchronized (store) {
             for (TrajPoint point : trajectory) {
                 try {
                     store.insert(point);
-                    LOG.info(this.dockerName + ": " + point.toString());
                 } catch (TrajStoreException e) {
                     e.printStackTrace();
                 }

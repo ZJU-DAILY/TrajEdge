@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -20,8 +21,10 @@ import org.example.grpc.TrajectoryServiceGrpc;
 import org.example.grpc.TrajectoryRequest;
 import org.example.grpc.TrajectoryResponse;
 import org.example.grpc.TrajectoryPoint;
+import java.util.TreeMap;
 import org.example.grpc.QueryByPrefixRequest;
 import org.example.struct.KeyRange;
+import org.example.struct.Key;
 import org.example.struct.Node;
 import org.example.struct.STHTIndex;
 import java.util.Random;
@@ -29,7 +32,6 @@ import java.util.Random;
 
 public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBase{
     private static final Logger LOG = LoggerFactory.getLogger(NodesService.class);
-    private static final String confPath = "/data/conf";
     private static final String supervisor = "supervisor-";
     private Map<String, Map<String, String>> nodeInfos;
     private Map<String, Node> nodes;
@@ -37,16 +39,25 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
     private final String dockerName;
     private final Integer port;
     private String id;
+    private String confPath = "/data/conf";
+    private Boolean debug;
 
 
-    public NodesService(String dockerName, int port){
-        this.nodeInfos = new HashMap<>();
+    public NodesService(String dockerName, int port, boolean debug){
+        this.nodeInfos = new TreeMap<>();
+        this.nodes = new TreeMap<>();
         this.indexUtils = new STHTIndex();
         this.dockerName = dockerName;
         this.port = port;
-        
-        // Load configuration files
-        this.id = dockerName.split("-")[1];
+        this.debug = debug;
+        if(debug){
+            this.confPath = "/home/hch/PROJECT/TrajEdge/conf";
+            this.id = "3";
+        }
+        else{
+            // Load configuration file
+            this.id = dockerName.split("-")[1];
+        }
         loadConfigFiles(id);
         initNodes();
     }
@@ -59,19 +70,31 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
         if (trajectory == null || trajectory.isEmpty()) {
             return;
         }
-        String key = indexUtils.encodeUniversalKey(trajectory);
-        String nodePrefix = this.longestPrefixMatch(key, nodes.keySet().toArray(new String[0]));
         String nextDockerName = "";
-        while(true){
-            Node node = nodes.get(nodePrefix);
-            String[] result = node.insert(key, trajectory);
-            String nextPrefix = result[0];
-            nextDockerName = result[1];
-            // 插入成功或者不在当前docker
-            if(nextPrefix == "" || !nodes.containsKey(nextPrefix))break;
-            nodePrefix = nextPrefix;
+
+        try{
+            String key = indexUtils.encodeUniversalKey(trajectory);
+            String nodePrefix = NodesService.longestPrefixMatch(key, nodes.keySet().toArray(new String[0]));
+            while(true){
+                Node node = nodes.get(nodePrefix);
+                String[] result = node.insert(key, trajectory);
+                String nextPrefix = result[0];
+                nextDockerName = result[1];
+                // 插入成功或者不在当前docker
+                if(nextPrefix.isEmpty() || !nodes.containsKey(nextPrefix)){
+                    if(nextPrefix.isEmpty()) LOG.info(dockerName +" 插入 " + key + " 成功");
+                    else if(!nodes.containsKey(nextPrefix)) LOG.info("当前docker {}, {} 不在当前docker, 路由到docker {} 中的 {}.", dockerName, key, nextDockerName, nextPrefix);
+                    break;
+                }
+                nodePrefix = nextPrefix;
+            }
+        }
+        catch(Exception e){
+            LOG.error("Insert trajectory error. ", trajectory);
+            e.printStackTrace();
         }
         if(!nextDockerName.isEmpty()) nextDockerName = supervisor + nextDockerName;
+        
         TrajectoryResponse response = TrajectoryResponse.newBuilder()
                 .setNextNodeId(nextDockerName)
                 .build();
@@ -88,9 +111,12 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
         // 2.对于每个key range执行一次查询
         for(KeyRange range : keyRanges){
             // 3.计算key range的起始key和终止key的最长公共前缀,找到对应的node
-            String commonPrefix = range.commonPrefix();
-            trajPoints.addAll(internalFind(commonPrefix, request.getStartTime(), request.getEndTime(),
-            request.getMinLat(), request.getMaxLat(), request.getMinLng(), request.getMaxLng()));
+            Iterator<Key> iter = range.iterator();
+            while(iter.hasNext()){
+                String prefix = iter.next().getKey();
+                trajPoints.addAll(internalFind(prefix, request.getStartTime(), request.getEndTime(),
+                request.getMinLat(), request.getMaxLat(), request.getMinLng(), request.getMaxLng()));
+            }
         }
 
         TrajectoryResponse.Builder responseBuilder = TrajectoryResponse.newBuilder();
@@ -197,24 +223,30 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
                 .build();
     }
 
-    public String longestPrefixMatch(String s, String[] S) {
+    public static String longestPrefixMatch(String s, String[] S) {
         String longestMatch = "";
-        String oriPrefix = "";
+        String oriPrefix = "????";
         for (String str : S) {
             // Check if str is a prefix of s
-            if (s.startsWith(str) && str.length() > longestMatch.length()) {
+            if (s.startsWith(str) && str.length() >= longestMatch.length()) {
                 longestMatch = str;
                 oriPrefix = str;
             }
             // Check for partial matches
-            for (int i = 0; i < Math.min(s.length(), str.length()); i++) {
+            int i = 0;
+            for (; i < Math.min(s.length(), str.length()); i++) {
                 if (s.charAt(i) != str.charAt(i)) {
-                    if (i > longestMatch.length()) {
+                    if (i > longestMatch.length() && str.length() <= oriPrefix.length()) {
                         longestMatch = str.substring(0, i);
                         oriPrefix = str;
                     }
                     break;
                 }
+            }
+            
+            if(i == Math.min(s.length(), str.length()) && i > longestMatch.length() && str.length() <= oriPrefix.length()){
+                longestMatch = str.substring(0, i);
+                oriPrefix = str;
             }
         }
         
@@ -237,12 +269,15 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
          Node node_to_find = nodes.get(prefix);
          String[] findResult = node_to_find.findKey(targetPrefix);
          if(findResult[0].isEmpty()){
-             List<TrajPoint> points = node_to_find.doRead(startTime, endTime,
-             minLat, maxLat, minLng, maxLng);
-             trajPoints.addAll(points);
+            LOG.info("Found {} in local storage.", targetPrefix);
+            List<TrajPoint> points = node_to_find.doRead(startTime, endTime,
+            minLat, maxLat, minLng, maxLng);
+            trajPoints.addAll(points);
          }
          else{
              String nextDockerId = findResult[1];
+             LOG.info("In {}, routing to node {}, skip in debug mode", dockerName, nextDockerId);
+             if(this.debug)return trajPoints;
              // 6.通过rpc向nextDockerId对应的server发起远程查询
              String remoteAddress = supervisor + nextDockerId + ":" + port;
              List<TrajPoint> remotePoints = prefixQueryClient(remoteAddress, targetPrefix, 

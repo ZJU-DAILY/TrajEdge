@@ -172,12 +172,18 @@ def write_allocations(root, points):
         queue.extend(node.children)
     
     # 复制文件到Docker容器
-    # for i in range(1, len(points) + 1):
-    #     container_name = f'supervisor-{i}'
-    #     mkdir_conf = f"docker exec {container_name} mkdir -p /data/conf"
-    #     cp_to_docker = f"docker cp ../conf/allocate_{i}.txt {container_name}:/data/conf"
-    #     subprocess.run(mkdir_conf, shell=True)
-    #     subprocess.run(cp_to_docker, shell=True)
+    for i in range(1, n + 1):
+        container_name = f'supervisor-{i}'
+        mkdir_conf = f"docker exec {container_name} mkdir -p /data/conf"
+        subprocess.run(mkdir_conf, shell=True)
+        cp_to_docker = f"docker cp ../conf/allocate_{i}.txt {container_name}:/data/conf"
+        subprocess.run(cp_to_docker, shell=True)
+        cp_to_docker = f"docker cp ../conf/parent_{i}.txt {container_name}:/data/conf"
+        subprocess.run(cp_to_docker, shell=True)
+        cp_to_docker = f"docker cp ../conf/children_{i}.txt {container_name}:/data/conf"
+        subprocess.run(cp_to_docker, shell=True)
+        cp_to_docker = f"docker cp ../conf/neighbor_{i}.txt {container_name}:/data/conf"
+        subprocess.run(cp_to_docker, shell=True)
 
 # 修改主程序逻辑
 root = build_tree("#", S_LAT_MIN, S_LAT_MAX, S_LON_MIN, S_LON_MAX, h + 1, points)

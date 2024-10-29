@@ -111,9 +111,10 @@ public class XZ2Coding implements SpatialCoding {
     long coding = br.getLong();
     List<Integer> res = xz2Sfc.getQuadrantSequence(coding);
     StringBuilder rawCode = new StringBuilder();
+    rawCode.append("#");
     for(int i = 0; i < xz2Precision; i++){
       if(i < res.size())rawCode.append(res.get(i));
-      else rawCode.append("#");
+      else break;
     }
     return rawCode.toString();
   }
