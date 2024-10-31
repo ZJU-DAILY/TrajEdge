@@ -22,25 +22,56 @@ import org.slf4j.LoggerFactory;
  * @desc ...
  * @date 2023-11-22 15:44:05
  */
-public class SpacialRangeQuerySpout extends BaseRichSpout {
+public class SpacialTemporalRangeQuerySpout extends BaseRichSpout {
     private static final Logger LOG = LoggerFactory.getLogger(SpacialRangeQuerySpout.class);
+    private static final Integer repeat = 1000;
     private SpoutOutputCollector collector;
     private List<Double> spacialRange;
     private Random random;
-    private boolean finished = false;
+    private List<Long> temporalRange;
+    private Integer counter = 0;
+    private int k;
+    private double minLat, maxLat, minLng, maxLng;
+    private long startTime, endTime;
+
+
+    public SpacialTemporalRangeQuerySpout(int k, double minLat, double maxLat, double minLng, double maxLng, long startTime, long endTime){
+        this.random = new Random(10086);
+        this.k = k;
+        this.minLat = minLat;
+        this.maxLat = maxLat;
+        this.minLng = minLng;
+        this.maxLng = maxLng;
+        this.startTime = startTime;
+        this.endTime = endTime;
+    }
 
     @Override
     public void open(Map<String, Object> conf, TopologyContext context, SpoutOutputCollector collector) {
         this.collector = collector;
-        this.random = new Random(10086);
-        int k = Integer.parseInt((String) conf.get("k"));
-        double maxLng = Double.parseDouble((String) conf.get("maxLng"));
-        double minLng = Double.parseDouble((String) conf.get("minLng"));
-        double maxLat = Double.parseDouble((String) conf.get("maxLat"));
-        double minLat = Double.parseDouble((String) conf.get("minLat"));
-        this.spacialRange = divideAndSelectRegion(k, maxLat, minLat, maxLng, minLng);
     }
 
+    /**
+     * 将时间范围等分并随机选择一个时间区域
+     * @param k 分数
+     * @param startTime 开始时间
+     * @param endTime 结束时间
+     * @return 随机选择的时间区域
+     */
+    public List<Long> divideAndSelectTimeRange(int k, long startTime, long endTime) {
+        long timeStep = (endTime - startTime) / k;
+
+        int randomTimeIndex = random.nextInt(k);
+
+        long selectedStartTime = startTime + randomTimeIndex * timeStep;
+        long selectedEndTime = selectedStartTime + timeStep;
+
+        List<Long> selectedTimeRange = new ArrayList<>();
+        selectedTimeRange.add(selectedStartTime);
+        selectedTimeRange.add(selectedEndTime);
+
+        return selectedTimeRange;
+    }
 
         /**
      * 将区域等分并随机选择一个区域
@@ -74,11 +105,12 @@ public class SpacialRangeQuerySpout extends BaseRichSpout {
 
     @Override
     public void nextTuple() {
-        if(finished) Utils.sleep(100);
+        if(this.counter > repeat) Utils.sleep(100);
         else{
-            finished = true;
-            Long startTime = 1176341492L, endTime = 1343349080L;
-            collector.emit(new Values(2, -1, -1, startTime, endTime, spacialRange.get(0), 
+            this.spacialRange = divideAndSelectRegion(k, maxLat, minLat, maxLng, minLng);
+            this.temporalRange = divideAndSelectTimeRange(k, startTime, endTime); // 初始化 temporalRange
+            this.counter++;
+            collector.emit(new Values(3, -1, -1, temporalRange.get(0), temporalRange.get(1), spacialRange.get(0), 
                 spacialRange.get(1), spacialRange.get(2), spacialRange.get(3)));
         }
 

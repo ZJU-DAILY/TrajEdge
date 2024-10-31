@@ -27,6 +27,7 @@ import io.grpc.ManagedChannelBuilder;
  * @desc ...
  * @date 2023-11-22 15:59:05
  */
+// queryType, 1: idtemporal, 2: spacial, 3: spacialTemporal, 4: knn
 public class QueryHandlerBolt extends BaseBasicBolt {
     private static final Logger LOG = LoggerFactory.getLogger(QueryHandlerBolt.class);
     private Map<String, Object> stormConf;
@@ -51,6 +52,9 @@ public class QueryHandlerBolt extends BaseBasicBolt {
 
     @Override
     public void execute(Tuple input, BasicOutputCollector collector) {
+        Integer queryType = input.getIntegerByField("queryType");
+        Integer trajId = input.getIntegerByField("trajId");
+        Integer topk = input.getIntegerByField("topk");
         Long startTime = input.getLongByField("startTime");
         Long endTime = input.getLongByField("endTime");
         Double minLat = input.getDoubleByField("minLat");
@@ -59,6 +63,9 @@ public class QueryHandlerBolt extends BaseBasicBolt {
         Double maxLng = input.getDoubleByField("maxLng");
        
         TrajectoryRequest request = TrajectoryRequest.newBuilder()
+                .setQueryType(queryType)
+                .setTrajId(trajId)
+                .setTopk(topk)
                 .setStartTime(startTime)
                 .setEndTime(endTime)
                 .setMinLat(minLat)

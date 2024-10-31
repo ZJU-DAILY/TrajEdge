@@ -69,7 +69,7 @@ public class RandomPointSpout extends BaseRichSpout {
             return;
         }
 
-        if (sentTuples < values.size()) {
+        if (sentTuples < maxTrajectoryIndex) {
             collector.emit(values.get(pointer), pointer);
             sentTuples++;
             

@@ -21,7 +21,6 @@ import org.apache.storm.StormSubmitter;
 import org.example.bolt.QueryHandlerBolt;
 import org.example.spout.query.SpacialRangeQuerySpout;
 import org.apache.storm.topology.TopologyBuilder;
-import org.apache.storm.tuple.Fields;
 
 
 /**

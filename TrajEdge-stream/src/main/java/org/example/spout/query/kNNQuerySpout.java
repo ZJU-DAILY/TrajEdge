@@ -22,23 +22,33 @@ import org.slf4j.LoggerFactory;
  * @desc ...
  * @date 2023-11-22 15:44:05
  */
-public class SpacialRangeQuerySpout extends BaseRichSpout {
+public class kNNQuerySpout extends BaseRichSpout {
     private static final Logger LOG = LoggerFactory.getLogger(SpacialRangeQuerySpout.class);
+    private static final Integer repeat = 1000;
     private SpoutOutputCollector collector;
     private List<Double> spacialRange;
     private Random random;
-    private boolean finished = false;
+    private Integer counter = 0;
+    private int topk, k;
+    private double minLat, maxLat, minLng, maxLng;
+    private long startTime, endTime;
+
+
+    public kNNQuerySpout(int topk, int k, double minLat, double maxLat, double minLng, double maxLng){
+        this.random = new Random(10086);
+        this.topk = topk;
+        this.k = k;
+        this.minLat = minLat;
+        this.maxLat = maxLat;
+        this.minLng = minLng;
+        this.maxLng = maxLng;
+        this.startTime = 1176341492L;
+        this.endTime = 1343349080L;
+    }
 
     @Override
     public void open(Map<String, Object> conf, TopologyContext context, SpoutOutputCollector collector) {
         this.collector = collector;
-        this.random = new Random(10086);
-        int k = Integer.parseInt((String) conf.get("k"));
-        double maxLng = Double.parseDouble((String) conf.get("maxLng"));
-        double minLng = Double.parseDouble((String) conf.get("minLng"));
-        double maxLat = Double.parseDouble((String) conf.get("maxLat"));
-        double minLat = Double.parseDouble((String) conf.get("minLat"));
-        this.spacialRange = divideAndSelectRegion(k, maxLat, minLat, maxLng, minLng);
     }
 
 
@@ -74,11 +84,11 @@ public class SpacialRangeQuerySpout extends BaseRichSpout {
 
     @Override
     public void nextTuple() {
-        if(finished) Utils.sleep(100);
+        if(this.counter > repeat) Utils.sleep(100);
         else{
-            finished = true;
-            Long startTime = 1176341492L, endTime = 1343349080L;
-            collector.emit(new Values(2, -1, -1, startTime, endTime, spacialRange.get(0), 
+            this.spacialRange = divideAndSelectRegion(k, maxLat, minLat, maxLng, minLng);
+            this.counter++;
+            collector.emit(new Values(4, -1, topk, startTime, endTime, spacialRange.get(0), 
                 spacialRange.get(1), spacialRange.get(2), spacialRange.get(3)));
         }
 

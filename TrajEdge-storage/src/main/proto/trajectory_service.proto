@@ -21,12 +21,15 @@ message TrajectoryPoint {
 
 message TrajectoryRequest {
   repeated TrajectoryPoint points = 1;
-  int64 start_time = 2;
-  int64 end_time = 3;
-  double min_lat = 4;
-  double max_lat = 5;
-  double min_lng = 6;
-  double max_lng = 7;
+  int32 query_type = 2;
+  int32 traj_id = 3;
+  int32 topk = 4;
+  int64 start_time = 5;
+  int64 end_time = 6;
+  double min_lat = 7;
+  double max_lat = 8;
+  double min_lng = 9;
+  double max_lng = 10;
 }
 
 message TrajectoryResponse {
