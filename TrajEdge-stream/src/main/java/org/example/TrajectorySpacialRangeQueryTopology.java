@@ -66,7 +66,7 @@ public class TrajectorySpacialRangeQueryTopology {
         builder.setSpout("spout", new SpacialRangeQuerySpout(), 1);
         builder.setBolt("spacialQuery", new QueryHandlerBolt(), 1).allGrouping("spout");
 
-
+        topoName = "TrajEdge-space-" + dataset + "-" + k;
         if (!isCluster) {
             LocalCluster localCluster = new LocalCluster();
             localCluster.submitTopology(topoName, config, builder.createTopology());

@@ -166,10 +166,14 @@ public class Node{
         }
     }
 
-    public List<TrajPoint> doRead(long startTime, long endTime, 
+    public List<TrajPoint> doRead(Integer trajId, long startTime, long endTime, 
             double minLat, double maxLat, double minLng, double maxLng) {
         List<TrajPoint> trajPoints = new ArrayList<>();
-        for (Integer id : trajIds) {
+        List<Integer> idToQuery;
+        if(trajId != -1)idToQuery = List.of(trajId);
+        else idToQuery = trajIds;
+
+        for (Integer id : idToQuery) {
             try {
                 LOG.info("Read =>" + this.dockerName + ": " + id);
                 List<TrajPoint> trajectoryPoints = rocksDbRead(id, startTime, endTime);

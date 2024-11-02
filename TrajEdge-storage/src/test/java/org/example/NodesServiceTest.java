@@ -59,6 +59,9 @@ public class NodesServiceTest {
 
         // Create read request
         TrajectoryRequest request = TrajectoryRequest.newBuilder()
+                .setQueryType(3)
+                .setTrajId(-1)
+                .setTopk(-1)
                 .setStartTime(1000L)
                 .setEndTime(2000L)
                 .setMinLat(30.0)

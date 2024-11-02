@@ -65,7 +65,7 @@
          builder.setSpout("spout", new SpacialTemporalRangeQuerySpout(k, minLat, maxLat, minLng, maxLng, startTime, endTime), 1);
          builder.setBolt("spacialQuery", new QueryHandlerBolt(), 1).allGrouping("spout");
  
-         String topoName = "IdTemporalQuery" + "_k=" + k + "_" + number;
+         String topoName = "TrajEdge-space-time-" + dataset + "-" + k;
          if (!isCluster) {
              LocalCluster localCluster = new LocalCluster();
              localCluster.submitTopology(topoName, config, builder.createTopology());

@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory;
  */
 public class SpacialTemporalRangeQuerySpout extends BaseRichSpout {
     private static final Logger LOG = LoggerFactory.getLogger(SpacialRangeQuerySpout.class);
-    private static final Integer repeat = 1000;
+    private static final Integer repeat = 100;
     private SpoutOutputCollector collector;
     private List<Double> spacialRange;
     private Random random;
@@ -105,7 +105,7 @@ public class SpacialTemporalRangeQuerySpout extends BaseRichSpout {
 
     @Override
     public void nextTuple() {
-        if(this.counter > repeat) Utils.sleep(100);
+        if(this.counter >= repeat) Utils.sleep(100);
         else{
             this.spacialRange = divideAndSelectRegion(k, maxLat, minLat, maxLng, minLng);
             this.temporalRange = divideAndSelectTimeRange(k, startTime, endTime); // 初始化 temporalRange

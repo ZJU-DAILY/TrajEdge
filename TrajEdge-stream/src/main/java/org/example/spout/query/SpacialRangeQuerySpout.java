@@ -27,7 +27,8 @@ public class SpacialRangeQuerySpout extends BaseRichSpout {
     private SpoutOutputCollector collector;
     private List<Double> spacialRange;
     private Random random;
-    private boolean finished = false;
+    private static final Integer repeat = 100;
+    private Integer counter = 0;
 
     @Override
     public void open(Map<String, Object> conf, TopologyContext context, SpoutOutputCollector collector) {
@@ -74,12 +75,12 @@ public class SpacialRangeQuerySpout extends BaseRichSpout {
 
     @Override
     public void nextTuple() {
-        if(finished) Utils.sleep(100);
+        if(counter >= repeat) Utils.sleep(100);
         else{
-            finished = true;
             Long startTime = 1176341492L, endTime = 1343349080L;
             collector.emit(new Values(2, -1, -1, startTime, endTime, spacialRange.get(0), 
                 spacialRange.get(1), spacialRange.get(2), spacialRange.get(3)));
+            this.counter++;
         }
 
     }

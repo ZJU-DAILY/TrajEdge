@@ -4,6 +4,8 @@ import java.util.List;
 
 import org.example.trajstore.TrajPoint;
 import java.util.ArrayList;
+import java.util.Comparator;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.HashMap;
@@ -22,12 +24,14 @@ import org.example.grpc.TrajectoryRequest;
 import org.example.grpc.TrajectoryResponse;
 import org.example.grpc.TrajectoryPoint;
 import java.util.TreeMap;
+
 import org.example.grpc.QueryByPrefixRequest;
 import org.example.struct.KeyRange;
 import org.example.struct.Key;
 import org.example.struct.Node;
 import org.example.struct.STHTIndex;
 import java.util.Random;
+import org.apache.commons.lang3.tuple.Pair; 
 
 
 public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBase{
@@ -105,6 +109,10 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
     @Override
     public void readTrajectoryData(TrajectoryRequest request, StreamObserver<TrajectoryResponse> responseObserver) {
         List<TrajPoint> trajPoints = new ArrayList<>();
+        int queryType = request.getQueryType();
+        int trajId = request.getTrajId();
+        int topk = request.getTopk();
+
         // 1.先生成需要查询的key ranges
         List<KeyRange> keyRanges = indexUtils.gKeyRanges(request.getStartTime(), request.getEndTime(),
         request.getMinLat(), request.getMaxLat(), request.getMinLng(), request.getMaxLng());
@@ -114,11 +122,31 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
             Iterator<Key> iter = range.iterator();
             while(iter.hasNext()){
                 String prefix = iter.next().getKey();
-                trajPoints.addAll(internalFind(prefix, request.getStartTime(), request.getEndTime(),
+                trajPoints.addAll(internalFind(prefix, trajId, request.getStartTime(), request.getEndTime(),
                 request.getMinLat(), request.getMaxLat(), request.getMinLng(), request.getMaxLng()));
             }
         }
+        // kNN query
+        if(queryType == 4){
+            double midLat = (request.getMinLat() + request.getMaxLat()) / 2;
+            double midLng = (request.getMinLat() + request.getMaxLng()) / 2;
+            // Create a list to store distances and corresponding points
+            List<Pair<TrajPoint, Double>> distanceList = new ArrayList<>();
+            for (TrajPoint point : trajPoints) {
+                double distance = calculateDistance(midLat, midLng, point.getOriLat(), point.getOriLng());
+                distanceList.add(Pair.of(point, distance));
+            }
 
+            // Sort the list by distance
+            distanceList.sort(Comparator.comparingDouble(Pair::getValue));
+
+            // Retrieve the top k points
+            trajPoints.clear(); // Clear existing points
+            for (int i = 0; i < Math.min(topk, distanceList.size()); i++) {
+                trajPoints.add(distanceList.get(i).getKey());
+            }
+        }
+                
         TrajectoryResponse.Builder responseBuilder = TrajectoryResponse.newBuilder();
         for (TrajPoint point : trajPoints) {
             responseBuilder.addPoints(convertToTrajectoryPoint(point));
@@ -128,10 +156,12 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
         responseObserver.onCompleted();
     }
 
+
     @Override
     public void queryByPrefix(QueryByPrefixRequest request, StreamObserver<TrajectoryResponse> responseObserver) {
         String targetPrefix = request.getPrefix();
-        List<TrajPoint> points = internalFind(targetPrefix, request.getStartTime(), request.getEndTime(),
+        Integer trajId = request.getTrajId();
+        List<TrajPoint> points = internalFind(targetPrefix, trajId, request.getStartTime(), request.getEndTime(),
         request.getMinLat(), request.getMaxLat(), request.getMinLng(), request.getMaxLng());
 
         TrajectoryResponse.Builder responseBuilder = TrajectoryResponse.newBuilder();
@@ -260,7 +290,7 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
         }
     }
 
-    private List<TrajPoint> internalFind(String targetPrefix, long startTime, long endTime, 
+    private List<TrajPoint> internalFind(String targetPrefix, Integer trajId, long startTime, long endTime, 
     double minLat, double maxLat, double minLng, double maxLng){
         List<TrajPoint> trajPoints = new ArrayList<>();
          // 4.先在本地的节点中找最长匹配的
@@ -270,7 +300,7 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
          String[] findResult = node_to_find.findKey(targetPrefix);
          if(findResult[0].isEmpty()){
             LOG.info("Found {} in local storage.", targetPrefix);
-            List<TrajPoint> points = node_to_find.doRead(startTime, endTime,
+            List<TrajPoint> points = node_to_find.doRead(trajId, startTime, endTime,
             minLat, maxLat, minLng, maxLng);
             trajPoints.addAll(points);
          }
@@ -281,14 +311,14 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
              // 6.通过rpc向nextDockerId对应的server发起远程查询
              String remoteAddress = supervisor + nextDockerId + ":" + port;
              List<TrajPoint> remotePoints = prefixQueryClient(remoteAddress, targetPrefix, 
-             startTime, endTime,
+             trajId, startTime, endTime,
              minLat, maxLat, minLng, maxLng);
              trajPoints.addAll(remotePoints);
          }
          return trajPoints;
     }
 
-    private List<TrajPoint> prefixQueryClient(String remoteAddress, String prefix,
+    private List<TrajPoint> prefixQueryClient(String remoteAddress, String prefix, Integer trajId,
                                           long startTime, long endTime,
                                           double minLat, double maxLat,
                                           double minLng, double maxLng) {
@@ -304,6 +334,7 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
 
             QueryByPrefixRequest request = QueryByPrefixRequest.newBuilder()
                 .setPrefix(prefix)
+                .setTrajId(trajId)
                 .setStartTime(startTime)
                 .setEndTime(endTime)
                 .setMinLat(minLat)
@@ -322,5 +353,16 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
                 channel.shutdown();
             }
         }
+    }
+
+    private double calculateDistance(double lat1, double lng1, double lat2, double lng2) {
+        final int R = 6371; // Radius of the Earth in kilometers
+        double latDistance = Math.toRadians(lat2 - lat1);
+        double lngDistance = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2) +
+                   Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                   Math.sin(lngDistance / 2) * Math.sin(lngDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c; // Distance in kilometers
     }
 }
