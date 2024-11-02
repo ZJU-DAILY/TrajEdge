@@ -25,6 +25,8 @@ public class DataStoreBolt extends BaseBasicBolt {
     private Integer port;
     private List<TrajectoryPoint> buffer;
     private static final int BUFFER_SIZE = 100; // 缓冲区大小
+    private List<ManagedChannel> channels = new ArrayList<>(); // 新增：用于存储通道
+
     
     @Override
     public void prepare(Map stormConf, TopologyContext context) {
@@ -78,6 +80,7 @@ public class DataStoreBolt extends BaseBasicBolt {
                 ManagedChannel channel = ManagedChannelBuilder.forAddress(result, port)
                     .usePlaintext()
                     .build();
+                channels.add(channel); // 新增：存储通道
                 localStub = TrajectoryServiceGrpc.newBlockingStub(channel);
             }
         }
@@ -101,5 +104,8 @@ public class DataStoreBolt extends BaseBasicBolt {
     @Override
     public void cleanup() {
         flushBuffer(); // 确保在关闭前刷新所有剩余的点
+        for (ManagedChannel channel : channels) { // 新增：关闭所有通道
+            channel.shutdown();
+        }
     }
 }

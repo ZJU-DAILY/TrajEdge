@@ -20,44 +20,235 @@
        networks:
          - storm-net
     
-     supervisor:
+     supervisor-1:
        image: storm:2.5.0
+       deploy:
+        resources:
+          limits:
+            cpus: '0.2'
+            memory: 2048M
+          reservations:
+            cpus: '0.04'
+            memory: 1024M
        container_name: supervisor-1
        command: storm supervisor
        depends_on:
          - nimbus
          - zookeeper
        restart: always
+       cap_add:
+         - NET_ADMIN
        networks:
          - storm-net
        environment:
          - CONTAINER_ID=supervisor-1
          
-     supervisor:
+     supervisor-2:
        image: storm:2.5.0
+       deploy:
+        resources:
+          limits:
+            cpus: '0.2'
+            memory: 2048M
+          reservations:
+            cpus: '0.04'
+            memory: 1024M
        container_name: supervisor-2
        command: storm supervisor
        depends_on:
          - nimbus
          - zookeeper
        restart: always
+       cap_add:
+         - NET_ADMIN
        networks:
          - storm-net
        environment:
          - CONTAINER_ID=supervisor-2
 
-     supervisor:
+     supervisor-3:
        image: storm:2.5.0
+       deploy:
+        resources:
+          limits:
+            cpus: '0.2'
+            memory: 2048M
+          reservations:
+            cpus: '0.04'
+            memory: 1024M
        container_name: supervisor-3
        command: storm supervisor
        depends_on:
          - nimbus
          - zookeeper
        restart: always
+       cap_add:
+         - NET_ADMIN
        networks:
          - storm-net
        environment:
          - CONTAINER_ID=supervisor-3
+
+     supervisor-4:
+       image: storm:2.5.0
+       deploy:
+        resources:
+          limits:
+            cpus: '0.2'
+            memory: 2048M
+          reservations:
+            cpus: '0.04'
+            memory: 1024M
+       container_name: supervisor-4
+       command: storm supervisor
+       depends_on:
+         - nimbus
+         - zookeeper
+       restart: always
+       cap_add:
+         - NET_ADMIN
+       networks:
+         - storm-net
+       environment:
+         - CONTAINER_ID=supervisor-4
+
+     supervisor-5:
+       image: storm:2.5.0
+       deploy:
+        resources:
+          limits:
+            cpus: '0.2'
+            memory: 2048M
+          reservations:
+            cpus: '0.04'
+            memory: 1024M
+       container_name: supervisor-5
+       command: storm supervisor
+       depends_on:
+         - nimbus
+         - zookeeper
+       restart: always
+       cap_add:
+         - NET_ADMIN
+       networks:
+         - storm-net
+       environment:
+         - CONTAINER_ID=supervisor-5
+
+     supervisor-6:
+       image: storm:2.5.0
+       deploy:
+        resources:
+          limits:
+            cpus: '0.2'
+            memory: 2048M
+          reservations:
+            cpus: '0.04'
+            memory: 1024M
+       container_name: supervisor-6
+       command: storm supervisor
+       depends_on:
+         - nimbus
+         - zookeeper
+       restart: always
+       cap_add:
+         - NET_ADMIN
+       networks:
+         - storm-net
+       environment:
+         - CONTAINER_ID=supervisor-6
+
+     supervisor-7:
+       image: storm:2.5.0
+       deploy:
+        resources:
+          limits:
+            cpus: '0.2'
+            memory: 2048M
+          reservations:
+            cpus: '0.04'
+            memory: 1024M
+       container_name: supervisor-7
+       command: storm supervisor
+       depends_on:
+         - nimbus
+         - zookeeper
+       restart: always
+       cap_add:
+         - NET_ADMIN
+       networks:
+         - storm-net
+       environment:
+         - CONTAINER_ID=supervisor-7
+
+     supervisor-8:
+       image: storm:2.5.0
+       deploy:
+        resources:
+          limits:
+            cpus: '0.2'
+            memory: 2048M
+          reservations:
+            cpus: '0.04'
+            memory: 1024M
+       container_name: supervisor-8
+       command: storm supervisor
+       depends_on:
+         - nimbus
+         - zookeeper
+       restart: always
+       cap_add:
+         - NET_ADMIN
+       networks:
+         - storm-net
+       environment:
+         - CONTAINER_ID=supervisor-8
+
+     supervisor-9:
+       image: storm:2.5.0
+       deploy:
+        resources:
+          limits:
+            cpus: '0.2'
+            memory: 2048M
+          reservations:
+            cpus: '0.04'
+            memory: 1024M
+       container_name: supervisor-9
+       command: storm supervisor
+       depends_on:
+         - nimbus
+         - zookeeper
+       restart: always
+       cap_add:
+         - NET_ADMIN
+       networks:
+         - storm-net
+       environment:
+         - CONTAINER_ID=supervisor-9
+
+     supervisor-10:
+       image: storm:2.5.0
+       deploy:
+        resources:
+          limits:
+            cpus: '0.2'
+            memory: 2048M
+          reservations:
+            cpus: '0.04'
+            memory: 1024M
+       container_name: supervisor-10
+       command: storm supervisor
+       depends_on:
+         - nimbus
+         - zookeeper
+       restart: always
+       cap_add:
+         - NET_ADMIN
+       networks:
+         - storm-net
+       environment:
+         - CONTAINER_ID=supervisor-10
 
      ui:
        image: storm:2.5.0

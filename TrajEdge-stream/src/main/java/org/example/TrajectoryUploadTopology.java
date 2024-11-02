@@ -35,6 +35,7 @@ public class TrajectoryUploadTopology {
         boolean isCluster = false;
         String topoName = "null";
         String trajNum = "1000";
+        String dataset = "geolife";
         if (args.length > 0) {
             topoName = args[0];
             if (args.length > 1) {
@@ -43,23 +44,16 @@ public class TrajectoryUploadTopology {
             if (args.length > 2) {
                 trajNum = args[2];
             }
+            if(args.length > 3){
+                dataset = args[3];
+            }
         }
 
         Config config = new Config();
         config.put("trajNum", trajNum);
-        // if (!isCluster) {
-        //     config.setDebug(false);
-        //     config.put("data.src", "/home/hch/PROJECT/data/geolife/trajectory/");
-        //     // config.put("data.index.dest", "C:\\Users\\HeAlec\\Desktop\\学院_实验室\\毕设\\代码\\TrajEdge\\output\\index\\");
-        //     // config.put("data.dest", "C:\\Users\\HeAlec\\Desktop\\学院_实验室\\毕设\\代码\\TrajEdge\\output\\data\\");
-        // }
-        // else{
-            
-        //     // config.put("data.index.dest", "~/PROJECT/data/geolife/trajectory/");
-        //     // config.put("data.dest", "C:\\Users\\HeAlec\\Desktop\\学院_实验室\\毕设\\代码\\TrajEdge\\output\\data\\");
-        // }
-        config.put("data.src", "/opt/data/trajectory/");
-        config.setNumWorkers(1);
+        config.put("data.src", "/opt/data/" + dataset + "/trajectory/");
+
+        topoName = "insert-" + dataset + "-" + trajNum;
 
         TopologyBuilder builder = new TopologyBuilder();
         builder.setSpout("spout", new RandomPointSpout(), 1);
