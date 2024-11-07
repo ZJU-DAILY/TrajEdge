@@ -59,7 +59,8 @@ public class RandomPointSpout extends BaseRichSpout {
         values = new ArrayList<>();
         readFromFile();
         totalTuples = values.size();
-        LOG.info("read file done, total tuples: " + totalTuples);
+        maxTrajectoryIndex = Math.min(totalTuples, maxTrajectoryIndex);
+        LOG.info("read file done, total tuples: " + maxTrajectoryIndex);
     }
 
     @Override
@@ -114,6 +115,7 @@ public class RandomPointSpout extends BaseRichSpout {
                         timestamp++;
                     }
                 }
+                in.close();
             }
         } catch (IOException e) {
             e.printStackTrace();

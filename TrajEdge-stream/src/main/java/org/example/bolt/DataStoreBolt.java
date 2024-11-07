@@ -24,7 +24,7 @@ public class DataStoreBolt extends BaseBasicBolt {
     private TrajectoryServiceGrpc.TrajectoryServiceBlockingStub stub;
     private Integer port;
     private List<TrajectoryPoint> buffer;
-    private static final int BUFFER_SIZE = 100; // 缓冲区大小
+    private static final int BUFFER_SIZE = 1000; // 缓冲区大小
     private List<ManagedChannel> channels = new ArrayList<>(); // 新增：用于存储通道
 
     
@@ -59,7 +59,6 @@ public class DataStoreBolt extends BaseBasicBolt {
             .build();
 
         buffer.add(point);
-
         if (buffer.size() >= BUFFER_SIZE) {
             flushBuffer();
         }
