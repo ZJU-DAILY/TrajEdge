@@ -3,11 +3,13 @@
 import math
 import os
 import time
-
-from src.main.java.org.example.bolt.compression.utils import network_data, numDirection
-
+import zstandard as zstd
+from utils import network_data, numDirection
+import numpy as np
+from tqdm import tqdm 
 
 def toBit(num: int):
+    # print(num)
     return "{0:0>{1}}".format(int(bin(num)[2:]), Q)
 
 
@@ -49,25 +51,83 @@ def DORClockWise(node_path):
             gLength = 0
     return To
 
+# 压缩数据
+def ZstdCompressor(data: bytes) -> bytes:
+    # 创建压缩器
+    cctx = zstd.ZstdCompressor()
+    start_time = time.time()  # 记录开始时间
+    # 压缩数据并返回
+    compressed_data = cctx.compress(data)
+    end_time = time.time()  # 记录结束时间
+    compression_time = end_time - start_time  # 计算压缩时间
+    return compressed_data, compression_time
+
+def ZstdDecompressor(data: bytes) -> bytes:
+    start_time = time.time()  # 记录解压开始时间
+    decompressed_data = zstd.decompress(zstdRes)  # 解压缩数据
+    end_time = time.time()  # 记录解压结束时间
+    decompression_time = end_time - start_time  # 计算解压时间
+    return decompressed_data, decompression_time
+
+def compressRatio(size, prevSize):
+    return (prevSize - size) / prevSize
+
 
 if __name__ == '__main__':
     Q = 3
     Sdm = '1111'
+    verbose = False
 
-    trajPath = 'C:\\Users\\HeAlec\\Desktop\\tdrive\\trajectory\\'
-    mapMatchOutPath = 'C:\\Users\\HeAlec\\Desktop\\tdrive\\mapOut\\'
-    nx_vertice, nx_edge, vertice_dict, edge_dict, edge_dist, edge_dist_dict, roadnetwork = network_data()
+    trajPath = '/home/hch/PROJECT/data/tdrive/trajectory/'
+    mapMatchOutPath = '/home/hch/PROJECT/data/tdrive/mapOut/'
+    networkPath = '/home/hch/PROJECT/data/tdrive/'
+    nx_vertice, nx_edge, vertice_dict, edge_dict, edge_dist, edge_dist_dict, roadnetwork = network_data(networkPath)
 
     i = 0
-    for filename in os.listdir(mapMatchOutPath):
-        i += 1
-        mapTrajData = mapMatchOutPath + filename
+    cRatio = []
+    compressTimes = []
+    decompressTimes = []
+    
+    for filename in tqdm(os.listdir(mapMatchOutPath), desc="Processing files"):
+        mapTrajData = os.path.join(mapMatchOutPath, filename)
 
         with open(mapTrajData, "r") as f:
             nodes = f.readline().strip("\n").split(",")
             nodes = [int(it) for it in nodes]
+        
+        with open(mapTrajData, "rb+") as f:
+            raw = f.read()
 
-        cTo = DORClockWise(nodes)
-        cTo_ = NaiveClockWise(nodes)
-        print(cTo)
-        print(cTo_)
+        try:
+            # cTo = DORClockWise(nodes)
+            # cTo_ = NaiveClockWise(nodes)
+            zstdRes, compressTime = ZstdCompressor(raw)
+            revZstdRes, decompressionTime = ZstdDecompressor(zstdRes)
+            
+            # bit
+            rawSize = len(nodes) * 32
+            zstdSize = len(zstdRes) * 8
+
+            if verbose:
+                # dorSize = len(cTo)
+                # ncSize = len(cTo_)
+                print(compressRatio(dorSize, rawSize))
+                print(compressRatio(ncSize, rawSize))
+                print(compressRatio(zstdSize, rawSize))
+
+                print((ncSize - dorSize) / ncSize)
+                print((zstdSize - dorSize) / zstdSize)
+            
+            cRatio.append(compressRatio(zstdSize, rawSize))
+            compressTimes.append(compressTime)
+            decompressTimes.append(decompressionTime)
+
+            i += 1
+            if i % 800 == 0:
+                print(np.mean(cRatio))
+                print(np.mean(compressTimes))
+                print(np.mean(decompressTimes))
+        except Exception as e:
+            pass
+            # print(f"An error occurred: {e}")  # 打印异常信息
+            
