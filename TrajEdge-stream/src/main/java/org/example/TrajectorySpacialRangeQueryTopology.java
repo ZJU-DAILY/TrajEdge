@@ -60,6 +60,12 @@ public class TrajectorySpacialRangeQueryTopology {
             config.put("minLng", "0.0");
             config.put("maxLng", "174.06752");
         }
+        else if("oldenburg".equals(dataset)){
+            config.put("minLat", "52.9");
+            config.put("maxLat", "53.6");
+            config.put("minLng", "7.7");
+            config.put("maxLng", "8.3");
+        }
 
         config.setNumWorkers(1);
         TopologyBuilder builder = new TopologyBuilder();

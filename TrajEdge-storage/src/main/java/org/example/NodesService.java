@@ -56,7 +56,7 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
         this.debug = debug;
         if(debug){
             this.confPath = "/home/hch/PROJECT/TrajEdge/conf";
-            this.id = "3";
+            this.id = "6";
         }
         else{
             // Load configuration file
@@ -266,7 +266,7 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
             int i = 0;
             for (; i < Math.min(s.length(), str.length()); i++) {
                 if (s.charAt(i) != str.charAt(i)) {
-                    if (i > longestMatch.length() && str.length() <= oriPrefix.length()) {
+                    if (i >= longestMatch.length() && str.length() <= oriPrefix.length()) {
                         longestMatch = str.substring(0, i);
                         oriPrefix = str;
                     }
@@ -274,7 +274,7 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
                 }
             }
             
-            if(i == Math.min(s.length(), str.length()) && i > longestMatch.length() && str.length() <= oriPrefix.length()){
+            if(i == Math.min(s.length(), str.length()) && i >= longestMatch.length() && str.length() <= oriPrefix.length()){
                 longestMatch = str.substring(0, i);
                 oriPrefix = str;
             }

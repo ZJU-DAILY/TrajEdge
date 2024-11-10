@@ -4,12 +4,10 @@ import org.example.grpc.TrajectoryRequest;
 import org.example.grpc.TrajectoryResponse;
 import org.example.grpc.TrajectoryPoint;
 import org.example.grpc.QueryByPrefixRequest;
-import org.example.trajstore.TrajPoint;
 import io.grpc.stub.StreamObserver;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -90,11 +88,11 @@ public class NodesServiceTest {
     @Test
     public void testQueryByPrefix() {
         // First insert some test data
-        addTestTrajectoryData();
+        // addTestTrajectoryData();
 
         // Create query request
         QueryByPrefixRequest request = QueryByPrefixRequest.newBuilder()
-                .setPrefix("#32")
+                .setPrefix("#2")
                 .setStartTime(1000L)
                 .setEndTime(2000L)
                 .setMinLat(30.0)
@@ -125,15 +123,15 @@ public class NodesServiceTest {
     public void testLongestPrefixMatch() {
         String[] prefixes = {"#2", "#20", "#200", "#201"};
         String key = "#2001";
-        String result = nodesService.longestPrefixMatch(key, prefixes);
+        String result = NodesService.longestPrefixMatch(key, prefixes);
         assertEquals("#200", result);
 
         key = "#20100";
-        result = nodesService.longestPrefixMatch(key, prefixes);
+        result = NodesService.longestPrefixMatch(key, prefixes);
         assertEquals("#201", result);
 
         key = "#23";
-        result = nodesService.longestPrefixMatch(key, prefixes);
+        result = NodesService.longestPrefixMatch(key, prefixes);
         assertEquals("#2", result);
     }
 

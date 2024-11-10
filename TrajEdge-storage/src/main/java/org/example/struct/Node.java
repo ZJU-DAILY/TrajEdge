@@ -53,7 +53,7 @@ public class Node{
 
         Map<String, Object> conf = new HashMap<>();
         conf.put(DaemonConfig.STORM_METRIC_STORE_CLASS, "org.example.trajstore.rocksdb.RocksDbStore");
-        conf.put(DaemonConfig.STORM_ROCKSDB_LOCATION, dataPath + "tdrive_data_" + prefix);
+        conf.put(DaemonConfig.STORM_ROCKSDB_LOCATION, dataPath + "oldenburg_data_" + prefix);
         conf.put(DaemonConfig.STORM_ROCKSDB_CREATE_IF_MISSING, true);
         conf.put(DaemonConfig.STORM_ROCKSDB_METADATA_STRING_CACHE_CAPACITY, 4000);
         conf.put(DaemonConfig.STORM_ROCKSDB_METRIC_RETENTION_HOURS, 240);

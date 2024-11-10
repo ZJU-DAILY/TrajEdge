@@ -60,6 +60,12 @@
             minLng = 0.0;
             maxLng = 174.06752;
         }
+        else if("oldenburg".equals(dataset)){
+            minLat = 52.9;
+            maxLat = 53.6;
+            minLng = 7.7;
+            maxLng = 8.3;
+        }
         
          TopologyBuilder builder = new TopologyBuilder();
          builder.setSpout("spout", new SpacialTemporalRangeQuerySpout(k, minLat, maxLat, minLng, maxLng, startTime, endTime), 1);

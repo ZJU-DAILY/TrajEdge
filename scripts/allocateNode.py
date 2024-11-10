@@ -4,10 +4,10 @@ import subprocess
 from collections import deque
 
 # 经纬度范围S
-S_LAT_MIN = 35.0
-S_LAT_MAX = 40.0
-S_LON_MIN = -120.0
-S_LON_MAX = -115.0
+S_LAT_MIN = 52.9
+S_LAT_MAX = 53.6
+S_LON_MIN = 7.7
+S_LON_MAX = 8.3
 
 # h的值
 h = 3

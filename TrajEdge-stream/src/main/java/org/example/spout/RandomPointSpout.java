@@ -16,11 +16,6 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.GregorianCalendar;
-import java.util.List;
 import java.util.Map;
 import org.apache.storm.spout.SpoutOutputCollector;
 import org.apache.storm.task.TopologyContext;
@@ -35,32 +30,69 @@ import org.slf4j.LoggerFactory;
 public class RandomPointSpout extends BaseRichSpout {
     private static final Logger LOG = LoggerFactory.getLogger(RandomPointSpout.class);
     private SpoutOutputCollector collector;
-    private Integer pointer = 0;
-    private String[] list;
-    private List<Values> values;
-    private Long maxTrajectoryIndex = 1000L;
-
+    private String[] fileList;
+    private int currentFileIndex = 0;
+    private BufferedReader currentReader = null;
     private String dataSrc;
-    private Integer lastTrajId = -1;
     private int sentTuples = 0;
-    private int totalTuples;
     private boolean finished = false;
 
-    private static final int LOG_INTERVAL = 100; // 每发送1000个tuple记录一次日志
+    // 平面坐标系范围
+    private static final double X_MIN = 281;
+    private static final double X_MAX = 23854;
+    private static final double Y_MIN = 3935;
+    private static final double Y_MAX = 30851;
+    // 经纬度范围
+    private static final double LON_MIN = 7.8;
+    private static final double LON_MAX = 8.2;
+    private static final double LAT_MIN = 53.0;
+    private static final double LAT_MAX = 53.5;
+
+    /**
+     * 将平面坐标转换为经纬度
+     */
+    private double[] localToLatLon(double x, double y) {
+        double longitude = LON_MIN + (x - X_MIN) / (X_MAX - X_MIN) * (LON_MAX - LON_MIN);
+        double latitude = LAT_MIN + (y - Y_MIN) / (Y_MAX - Y_MIN) * (LAT_MAX - LAT_MIN);
+        return new double[]{latitude, longitude};
+    }
 
     @Override
     public void open(Map<String, Object> conf, TopologyContext context, SpoutOutputCollector collector) {
-        maxTrajectoryIndex = Long.parseLong((String) conf.get("trajNum"));
-        LOG.info("trajNum: {}", maxTrajectoryIndex);
         this.dataSrc = (String) conf.get("data.src");
         this.collector = collector;
         File path = new File(this.dataSrc);
-        list = path.list();
-        values = new ArrayList<>();
-        readFromFile();
-        totalTuples = values.size();
-        maxTrajectoryIndex = Math.min(totalTuples, maxTrajectoryIndex);
-        LOG.info("read file done, total tuples: " + maxTrajectoryIndex);
+        fileList = path.list();
+        LOG.info("Found {} files to process", fileList.length);
+        openNextFile();
+    }
+
+    private void openNextFile() {
+        try {
+            if (currentReader != null) {
+                currentReader.close();
+            }
+            
+            while (currentFileIndex < fileList.length) {
+                String filename = fileList[currentFileIndex];
+                // 跳过不需要处理的文件
+                // if (filename.equals("o5.dat")) {
+                //     currentFileIndex++;
+                //     continue;
+                // }
+                
+                String filePath = dataSrc + filename;
+                LOG.info("Opening file: {}", filePath);
+                currentReader = new BufferedReader(new FileReader(filePath));
+                return;
+            }
+            
+            finished = true;
+            LOG.info("All files have been processed");
+        } catch (IOException e) {
+            LOG.error("Error opening file: {}", e.getMessage());
+            finished = true;
+        }
     }
 
     @Override
@@ -70,66 +102,51 @@ public class RandomPointSpout extends BaseRichSpout {
             return;
         }
 
-        if (sentTuples < maxTrajectoryIndex) {
-            collector.emit(values.get(pointer), pointer);
-            sentTuples++;
-            
-            // 每发送LOG_INTERVAL个tuple，记录一次积压情况
-            if (sentTuples % LOG_INTERVAL == 0) {
-                int pendingTuples = totalTuples - sentTuples;
-                LOG.info("RandomPointSpout - Pending tuples: " + pendingTuples + 
-                         ", Sent tuples: " + sentTuples + 
-                         ", Total tuples: " + totalTuples);
-            }
-
-            if(!values.get(pointer).get(0).equals(lastTrajId)){
-                lastTrajId = (Integer) values.get(pointer).get(0);
-                LOG.info("Start upload of trajectory: " + lastTrajId);
-                LOG.info("maxTrajectoryIndex: " + maxTrajectoryIndex);
-            }
-            pointer++;
-        } else {
-            // 所有tuple都已发送，发出结束信号
-            // collector.emit(new Values(-1, -1L, -1L, -0.0, -0.0, -0.0), "END");
-            finished = true;
-            LOG.info("All tuples have been processed. Sent end-of-stream signal.");
-        }
-    }
-
-    public void readFromFile() {
         try {
-            for (String file : list) {
-               LOG.info("Trajectory id: {}", file);
-                if(values.size() > this.maxTrajectoryIndex)break;
-                BufferedReader in = new BufferedReader(new FileReader(this.dataSrc + file));
-                String str;
-                while ((str = in.readLine()) != null) {
-                    String[] points = str.split("\n");
-                    for (String point : points) {
-                        int trajId = Integer.parseInt(file);
-                        String[] info = point.split(" ");
-                        double lat = Double.parseDouble(info[0]);
-                        double lng = Double.parseDouble(info[1]);
-                        long timestamp = Long.parseLong(info[2]);
-                        values.add(new Values(trajId, timestamp, 0L, 0.0, lat, lng));
-                        timestamp++;
-                    }
-                }
-                in.close();
+            String line = currentReader.readLine();
+            if (line == null) {
+                currentFileIndex++;
+                openNextFile();
+                return;
             }
+
+            // 解析原始数据行
+            String[] parts = line.strip().split("\t");
+            // LOG.info(parts[5]);
+            // LOG.info(parts[6]);
+            // LOG.info(parts[7]);
+            if (parts.length >= 7) {  // 确保数据行包含足够的字段
+                String id = parts[1];
+                double x = Double.parseDouble(parts[5]);
+                double y = Double.parseDouble(parts[6]);
+                double timestamp = Double.parseDouble(parts[7]);
+                long t = (long) timestamp;
+                // 转换坐标
+                double[] latLon = localToLatLon(x, y);
+                
+                Values tuple = new Values(Integer.valueOf(id), t, 0L, 0.0, latLon[0], latLon[1]);
+                collector.emit(tuple, sentTuples);
+                sentTuples++;
+            }
+
         } catch (IOException e) {
-            e.printStackTrace();
+            LOG.error("Error reading line: {}", e.getMessage());
+            currentFileIndex++;
+            openNextFile();
+        } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
+            LOG.error("Error parsing line: {}", e.getMessage());
         }
     }
 
     @Override
     public void ack(Object msgId) {
-        super.ack(msgId);
+        // 可以添加确认处理逻辑
     }
 
     @Override
     public void fail(Object msgId) {
-        collector.emit(values.get((Integer) msgId), msgId);
+        // 可以添加失败重试逻辑
+        LOG.error("Failed to process message ID: {}", msgId);
     }
 
     @Override
@@ -137,4 +154,15 @@ public class RandomPointSpout extends BaseRichSpout {
         declarer.declare(new Fields("trajId", "timestamp", "edgeId", "dist", "oriLat", "oriLng"));
     }
 
+    @Override
+    public void close() {
+        try {
+            if (currentReader != null) {
+                currentReader.close();
+            }
+        } catch (IOException e) {
+            LOG.error("Error closing reader: {}", e.getMessage());
+        }
+    }
 }
+

@@ -54,7 +54,7 @@ public class TrajectoryIdQueryTopology {
         }
 
         Config config = new Config();
-        config.setNumWorkers(5);
+        config.setNumWorkers(1);
 
         if("tdrive".equals(dataset)){
             minLat = 0.0;

@@ -22,10 +22,12 @@ import java.time.Instant;
 public class STHTIndex {
     private static final Logger LOG = LoggerFactory.getLogger(STHTIndex.class);
     // 常量定义
-    public static final double X_MIN = -90.0;
-    public static final double X_MAX = 90.0;
-    public static final double Y_MIN = -180.0;
-    public static final double Y_MAX = 180.0;
+    // lat
+    public static final double X_MIN = 52.9;
+    public static final double X_MAX = 53.6;
+    // lng
+    public static final double Y_MIN = 7.7;
+    public static final double Y_MAX = 8.3;
     public static double LogPointFive = Math.log(0.5);
 
 

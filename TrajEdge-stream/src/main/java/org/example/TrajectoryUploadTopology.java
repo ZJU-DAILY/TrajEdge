@@ -51,7 +51,7 @@ public class TrajectoryUploadTopology {
 
         Config config = new Config();
         config.put("trajNum", trajNum);
-        config.put("data.src", "/opt/data/" + dataset + "/trajectory/");
+        config.put("data.src", "/opt/data/" + dataset + "/raw/");
 
         topoName = "insert-" + dataset + "-" + trajNum;
 

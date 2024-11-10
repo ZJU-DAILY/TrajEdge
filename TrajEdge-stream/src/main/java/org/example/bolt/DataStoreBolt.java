@@ -3,6 +3,7 @@ package org.example.bolt;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import org.apache.storm.task.TopologyContext;
@@ -23,9 +24,10 @@ public class DataStoreBolt extends BaseBasicBolt {
     private TopologyContext context;
     private TrajectoryServiceGrpc.TrajectoryServiceBlockingStub stub;
     private Integer port;
-    private List<TrajectoryPoint> buffer;
-    private static final int BUFFER_SIZE = 1000; // 缓冲区大小
-    private List<ManagedChannel> channels = new ArrayList<>(); // 新增：用于存储通道
+    private Map<Integer, List<TrajectoryPoint>> trajectoryBuffer;
+    private int totalPoints;
+    private static final Integer BUFFER_SIZE = 10000;
+    private List<ManagedChannel> channels = new ArrayList<>();
 
     
     @Override
@@ -37,7 +39,8 @@ public class DataStoreBolt extends BaseBasicBolt {
             .usePlaintext()
             .build();
         stub = TrajectoryServiceGrpc.newBlockingStub(channel1);
-        buffer = new ArrayList<>(BUFFER_SIZE);
+        trajectoryBuffer = new HashMap<>();
+        totalPoints = 0;
         LOG.info("data store is prepared...");
     }
 
@@ -58,34 +61,40 @@ public class DataStoreBolt extends BaseBasicBolt {
             .setLng(oriLng)
             .build();
 
-        buffer.add(point);
-        if (buffer.size() >= BUFFER_SIZE) {
+        trajectoryBuffer.computeIfAbsent(trajId, k -> new ArrayList<>()).add(point);
+        totalPoints++;
+
+        if (totalPoints >= BUFFER_SIZE) {
             flushBuffer();
         }
     }
 
     private void flushBuffer() {
-        if (buffer.isEmpty()) {
+        if (trajectoryBuffer.isEmpty()) {
             return;
         }
 
         TrajectoryServiceGrpc.TrajectoryServiceBlockingStub localStub = this.stub;
-        String result = "";
-        while (true) {
-            result = insertTrajectory(localStub, buffer);
-            if (result.isEmpty()) {
-                break;
-            } else {
-                ManagedChannel channel = ManagedChannelBuilder.forAddress(result, port)
-                    .usePlaintext()
-                    .build();
-                channels.add(channel); // 新增：存储通道
-                localStub = TrajectoryServiceGrpc.newBlockingStub(channel);
+        
+        for (List<TrajectoryPoint> trajectory : trajectoryBuffer.values()) {
+            String result = "";
+            while (true) {
+                result = insertTrajectory(localStub, trajectory);
+                if (result.isEmpty()) {
+                    break;
+                } else {
+                    ManagedChannel channel = ManagedChannelBuilder.forAddress(result, port)
+                        .usePlaintext()
+                        .build();
+                    channels.add(channel);
+                    localStub = TrajectoryServiceGrpc.newBlockingStub(channel);
+                }
             }
         }
 
-        buffer.clear();
-        LOG.info("Flushed {} points to storage", BUFFER_SIZE);
+        trajectoryBuffer.clear();
+        totalPoints = 0;
+        LOG.info("Flushed {} trajectories to storage", trajectoryBuffer.size());
     }
 
     private String insertTrajectory(TrajectoryServiceGrpc.TrajectoryServiceBlockingStub stub, List<TrajectoryPoint> trajectory) {
@@ -102,8 +111,8 @@ public class DataStoreBolt extends BaseBasicBolt {
 
     @Override
     public void cleanup() {
-        flushBuffer(); // 确保在关闭前刷新所有剩余的点
-        for (ManagedChannel channel : channels) { // 新增：关闭所有通道
+        flushBuffer();
+        for (ManagedChannel channel : channels) {
             channel.shutdown();
         }
     }
