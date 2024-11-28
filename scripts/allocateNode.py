@@ -10,8 +10,8 @@ S_LON_MIN = 7.7
 S_LON_MAX = 8.3
 
 # h的值
-h = 3
-n = 10
+h = 4
+n = 30
 
 # 生成30个随机经纬度值
 points = [(random.uniform(S_LAT_MIN, S_LAT_MAX), random.uniform(S_LON_MIN, S_LON_MAX)) for _ in range(n)]

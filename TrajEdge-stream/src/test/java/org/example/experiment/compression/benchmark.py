@@ -81,12 +81,13 @@ if __name__ == '__main__':
     trajPath = '/home/hch/PROJECT/data/tdrive/trajectory/'
     mapMatchOutPath = '/home/hch/PROJECT/data/tdrive/mapOut/'
     networkPath = '/home/hch/PROJECT/data/tdrive/'
-    nx_vertice, nx_edge, vertice_dict, edge_dict, edge_dist, edge_dist_dict, roadnetwork = network_data(networkPath)
+    # nx_vertice, nx_edge, vertice_dict, edge_dict, edge_dist, edge_dist_dict, roadnetwork = network_data(networkPath)
 
     i = 0
     cRatio = []
     compressTimes = []
     decompressTimes = []
+    rawSizes = []
     
     for filename in tqdm(os.listdir(mapMatchOutPath), desc="Processing files"):
         mapTrajData = os.path.join(mapMatchOutPath, filename)
@@ -121,9 +122,11 @@ if __name__ == '__main__':
             cRatio.append(compressRatio(zstdSize, rawSize))
             compressTimes.append(compressTime)
             decompressTimes.append(decompressionTime)
+            rawSizes.append(rawSize)
 
             i += 1
             if i % 800 == 0:
+                print(np.sum(rawSizes) / (2 * 1024 * 1024))
                 print(np.mean(cRatio))
                 print(np.mean(compressTimes))
                 print(np.mean(decompressTimes))

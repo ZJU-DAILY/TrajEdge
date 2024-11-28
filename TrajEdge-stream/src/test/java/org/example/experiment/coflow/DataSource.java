@@ -1,4 +1,4 @@
-package org.example.exp.coflow;
+package org.example.experiment.coflow;
 
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;

@@ -42,31 +42,27 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
     private STHTIndex indexUtils;
     private final String dockerName;
     private final Integer port;
-    private String id;
+    // private String id;
     private String confPath = "/data/conf";
     private Boolean debug;
 
 
-    public NodesService(String dockerName, int port, boolean debug){
-        this.nodeInfos = new TreeMap<>();
+    public NodesService(String dockerName, int port, boolean debug, Map<String, Map<String, String>> nodeInfo) {
+        this.nodeInfos = nodeInfo;
         this.nodes = new TreeMap<>();
         this.indexUtils = new STHTIndex();
         this.dockerName = dockerName;
         this.port = port;
         this.debug = debug;
-        if(debug){
-            this.confPath = "/home/hch/PROJECT/TrajEdge/conf";
-            this.id = "6";
-        }
-        else{
-            // Load configuration file
-            this.id = dockerName.split("-")[1];
-        }
-        loadConfigFiles(id);
         initNodes();
     }
 
-    
+    public NodesService(String dockerName, int port, boolean debug) {
+        this.port = port;
+        this.dockerName = dockerName;
+        return;
+    }
+
     @Override
     public void addTrajectoryData(TrajectoryRequest request, StreamObserver<TrajectoryResponse> responseObserver) {
         List<TrajPoint> trajectory = convertToTrajPoints(request.getPointsList());
@@ -97,7 +93,6 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
             LOG.error("Insert trajectory error. ", trajectory);
             e.printStackTrace();
         }
-        if(!nextDockerName.isEmpty()) nextDockerName = supervisor + nextDockerName;
         
         TrajectoryResponse response = TrajectoryResponse.newBuilder()
                 .setNextNodeId(nextDockerName)
@@ -179,54 +174,6 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
         }
     }
 
-    private void loadConfigFiles(String id) {
-        // Load allocate files
-        loadFile("allocate_" + id + ".txt", "allocate");
-        loadFile("children_" + id + ".txt", "children");
-        loadFile("neighbor_" + id + ".txt", "neighbor");
-        loadFile("parent_" + id + ".txt", "parent");
-    }
-
-    private void loadFile(String fileName, String type) {
-        String filePath = confPath + "/" + fileName;
-        try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.trim().isEmpty()) continue;
-                
-                if (type.equals("allocate")) {
-                    // For allocate files, just store the prefix
-                    nodeInfos.put(line.trim(), new HashMap<>());
-                } else {
-                    // For other files, parse the relationship information
-                    parseRelationship(line, type);
-                }
-            }
-        } catch (IOException e) {
-            LOG.error("Error reading file: " + fileName, e);
-        }
-    }
-
-    private void parseRelationship(String line, String type) {
-        // Skip empty lines or comments
-        if (line.trim().isEmpty() || !line.contains(",")) {
-            return;
-        }
-
-        // Split the line into parts
-        String[] parts = line.split(",", 2);
-        String prefix = parts[0].trim();
-        String relationInfo = parts[1].trim();
-        String[] relatedNodes = relationInfo.split(",");
-        for(String relatedNode : relatedNodes){
-            String[] info = relatedNode.split(":");
-            String relatedPrefix = info[0].trim();
-            String dockerId = info[1].trim();
-            // Store the relationship information
-            nodeInfos.get(prefix).put(relatedPrefix, dockerId);
-        }  
-    }
-
     private List<TrajPoint> convertToTrajPoints(List<TrajectoryPoint> points) {
         List<TrajPoint> trajPoints = new ArrayList<>();
         for (TrajectoryPoint point : points) {
@@ -305,11 +252,11 @@ public class NodesService extends TrajectoryServiceGrpc.TrajectoryServiceImplBas
             trajPoints.addAll(points);
          }
          else{
-             String nextDockerId = findResult[1];
-             LOG.info("In {}, routing to node {}, skip in debug mode", dockerName, nextDockerId);
+             String nextPort = findResult[1];
+             LOG.info("In {}, routing to node {}, skip in debug mode", dockerName, nextPort);
              if(this.debug)return trajPoints;
              // 6.通过rpc向nextDockerId对应的server发起远程查询
-             String remoteAddress = supervisor + nextDockerId + ":" + port;
+             String remoteAddress = "localhost" + ":" + nextPort;
              List<TrajPoint> remotePoints = prefixQueryClient(remoteAddress, targetPrefix, 
              trajId, startTime, endTime,
              minLat, maxLat, minLng, maxLng);

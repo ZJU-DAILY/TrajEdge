@@ -1,4 +1,4 @@
-package org.example.exp.coflow;// Aminis的思路是有一个带宽资源，然后在初始化的时候就进行分配。并且随着运行而发生变化
+package org.example.experiment.coflow;// Aminis的思路是有一个带宽资源，然后在初始化的时候就进行分配。并且随着运行而发生变化
 // 整体的思路是优先满足短作业，从而最大化runtime任务的完成数量
 
 //消费者处理一个tuple需要500ms，生产者生成一个tuple需要10，100，1000 + （100）的时间

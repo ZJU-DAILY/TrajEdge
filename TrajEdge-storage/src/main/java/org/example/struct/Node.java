@@ -61,7 +61,7 @@ public class Node{
             store = TrajStoreConfig.configure(conf);
         } catch (TrajStoreException e) {
             LOG.error("Failed to configure TrajStore", e);
-            throw new RuntimeException("Failed to configure TrajStore", e);
+            // throw new RuntimeException("Failed to configure TrajStore", e);
         }
     }
 
@@ -153,17 +153,17 @@ public class Node{
     }
 
     private void doStore(List<TrajPoint> trajectory) {
-        LOG.info(this.dockerName + ", size: " + trajectory.size() + "insert into storage.");
-        LOG.info(this.dockerName + ", trajectory id: " + trajectory.get(0).getTrajId());
-        synchronized (store) {
-            for (TrajPoint point : trajectory) {
-                try {
-                    store.insert(point);
-                } catch (TrajStoreException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
+        // LOG.info(this.dockerName + ", size: " + trajectory.size() + "insert into storage.");
+        // LOG.info(this.dockerName + ", trajectory id: " + trajectory.get(0).getTrajId());
+        // synchronized (store) {
+        //     for (TrajPoint point : trajectory) {
+        //         try {
+        //             store.insert(point);
+        //         } catch (TrajStoreException e) {
+        //             e.printStackTrace();
+        //         }
+        //     }
+        // }
     }
 
     public List<TrajPoint> doRead(Integer trajId, long startTime, long endTime, 
@@ -173,22 +173,22 @@ public class Node{
         if(trajId != -1)idToQuery = List.of(trajId);
         else idToQuery = trajIds;
 
-        for (Integer id : idToQuery) {
-            try {
-                LOG.info("Read =>" + this.dockerName + ": " + id);
-                List<TrajPoint> trajectoryPoints = rocksDbRead(id, startTime, endTime);
+        // for (Integer id : idToQuery) {
+        //     try {
+        //         LOG.info("Read =>" + this.dockerName + ": " + id);
+        //         List<TrajPoint> trajectoryPoints = rocksDbRead(id, startTime, endTime);
 
-                for (TrajPoint point : trajectoryPoints) {
-                    if (point.getOriLat() >= minLat && point.getOriLat() <= maxLat &&
-                        point.getOriLng() >= minLng && point.getOriLng() <= maxLng &&
-                        point.getTimestamp() >= startTime && point.getTimestamp() <= endTime) {
-                        trajPoints.add(point);
-                    }
-                }
-            } catch (TrajStoreException e) {
-                LOG.error("Error reading local trajectory data for ID: " + id, e);
-            }
-        }
+        //         for (TrajPoint point : trajectoryPoints) {
+        //             if (point.getOriLat() >= minLat && point.getOriLat() <= maxLat &&
+        //                 point.getOriLng() >= minLng && point.getOriLng() <= maxLng &&
+        //                 point.getTimestamp() >= startTime && point.getTimestamp() <= endTime) {
+        //                 trajPoints.add(point);
+        //             }
+        //         }
+        //     } catch (TrajStoreException e) {
+        //         LOG.error("Error reading local trajectory data for ID: " + id, e);
+        //     }
+        // }
         return trajPoints; // Add this return statement
     }
 
@@ -212,5 +212,17 @@ public class Node{
             LOG.info("read trajectory size: {}. ", list.size());
         }
         return list;
+    }
+
+    public String getPrefix() {
+        return prefix;
+    }
+
+    public String getDockerName() {
+        return dockerName;
+    }
+
+    public Map<String, String> getRoutingEntry() {
+        return routingEntry;
     }
 }
